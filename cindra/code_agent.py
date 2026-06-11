@@ -1,11 +1,11 @@
-"""code_agent —— CindraCode 的 Claude agent (生成符合工程规范的 UE C++)。
+"""code_agent —— CindraCode 的 agent (生成符合工程规范的 UE C++)。
 
 共享 loop/helper 在 base_agent.CindraAgent; 这里只声明 CindraCode 特有的系统提示
 和工具结果格式化。护城河: 生成前先 search_project 了解工程已有的类/命名/约定。
 """
 from __future__ import annotations
 
-import anthropic
+from typing import Any
 
 from . import code_tools
 from .base_agent import CindraAgent, _json
@@ -32,7 +32,7 @@ class CindraCodeAgent(CindraAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
     TOOL_EMOJI = "🔎"
 
-    def __init__(self, index, client: anthropic.Anthropic | None = None,
+    def __init__(self, index, client: Any | None = None,
                  verbose: bool = True) -> None:
         super().__init__(index, code_tools, client=client, verbose=verbose)
 

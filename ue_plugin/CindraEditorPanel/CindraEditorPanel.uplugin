@@ -1,0 +1,18 @@
+﻿{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "Cindra Editor Panel",
+  "Description": "In-editor Cindra prompt panel for controlling UE scenes with AI.",
+  "Category": "Editor",
+  "CreatedBy": "Cindra",
+  "EnabledByDefault": true,
+  "CanContainContent": false,
+  "Modules": [
+    {
+      "Name": "CindraEditorPanel",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

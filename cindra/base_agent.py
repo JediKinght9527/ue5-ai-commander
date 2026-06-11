@@ -1,4 +1,4 @@
-"""base_agent —— 四大功能共用的 Claude agent loop。
+"""base_agent —— 四大功能共用的 agent loop。
 
 CindraChat/Docs/Code/Blueprint 的 agent 本来是同一段手写 loop 的复制粘贴。这里把
 共享部分收进 CindraAgent 基类, 子类只需声明三件不同的事:
@@ -13,10 +13,12 @@ cache 断点, 多轮对话里固定前缀只算一次钱。
 from __future__ import annotations
 
 import json
+from typing import Any
 
-import anthropic
+from .model_provider import (DEFAULT_ANTHROPIC_MODEL, build_provider,
+                             selected_model)
 
-DEFAULT_MODEL = "claude-opus-4-8"
+DEFAULT_MODEL = DEFAULT_ANTHROPIC_MODEL
 
 
 class CindraAgent:
@@ -27,12 +29,12 @@ class CindraAgent:
     TOOL_EMOJI: str = "⚙️"   # 工具调用日志前缀, 子类可换 (docs/code 用 🔎)
 
     def __init__(self, target, tools_module,
-                 client: anthropic.Anthropic | None = None,
+                 client: Any | None = None,
                  verbose: bool = True) -> None:
         # target: dispatch 的上下文对象 (chat/blueprint 是 transport, docs/code 是 index)
         self.target = target
         self.tools_module = tools_module
-        self.client = client or anthropic.Anthropic()
+        self.client = build_provider(client)
         self.verbose = verbose
         self.messages: list[dict] = []
 
@@ -44,23 +46,22 @@ class CindraAgent:
         """处理一条用户消息, 跑完 agentic loop, 返回 agent 最终文本。"""
         self.messages.append({"role": "user", "content": user_message})
 
-        # 工具表 + 系统提示是固定前缀 -> 缓存。断点放在工具表最后一项上。
         tools = [dict(t) for t in self.tools_module.TOOLS]
-        tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
-        system = [{"type": "text", "text": self.SYSTEM_PROMPT,
-                   "cache_control": {"type": "ephemeral"}}]
+        model = selected_model(self.MODEL)
 
         final_text = ""
         while True:
-            resp = self.client.messages.create(
-                model=self.MODEL,
+            resp = self.client.create(
+                model=model,
                 max_tokens=8000,
-                thinking={"type": "adaptive"},
-                system=system,
+                system_prompt=self.SYSTEM_PROMPT,
                 tools=tools,
                 messages=self.messages,
             )
-            self.messages.append({"role": "assistant", "content": resp.content})
+            self.messages.append({
+                "role": "assistant",
+                "content": [b.to_message_block() for b in resp.content],
+            })
 
             for block in resp.content:
                 if block.type == "text" and block.text.strip():

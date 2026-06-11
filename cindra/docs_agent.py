@@ -1,4 +1,4 @@
-"""docs_agent —— CindraDocs 的 Claude agent (UE 问答 RAG 的 G)。
+"""docs_agent —— CindraDocs 的 agent (UE 问答 RAG 的 G)。
 
 共享 loop/helper 在 base_agent.CindraAgent; 这里只声明 CindraDocs 特有的系统提示
 和工具结果格式化。与 CindraChat 同构: agent 调 search_docs 读回真实片段再作答 ==
@@ -6,7 +6,7 @@ CindraChat 调 list_actors 自检, 都强制"基于真实证据"。
 """
 from __future__ import annotations
 
-import anthropic
+from typing import Any
 
 from . import docs_tools
 from .base_agent import CindraAgent, _json
@@ -30,7 +30,7 @@ class CindraDocsAgent(CindraAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
     TOOL_EMOJI = "🔎"
 
-    def __init__(self, index, client: anthropic.Anthropic | None = None,
+    def __init__(self, index, client: Any | None = None,
                  verbose: bool = True) -> None:
         super().__init__(index, docs_tools, client=client, verbose=verbose)
 

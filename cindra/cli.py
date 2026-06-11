@@ -20,13 +20,15 @@ CindraBlueprint (自然语言搭蓝图事件图):
   python -m cindra.cli --mode blueprint --backend ue    # 真 UE (需 C++ 插件, 见说明)
   python -m cindra.cli --mode blueprint --once "BeginPlay 时打印 hello"
 
-需要环境变量 ANTHROPIC_API_KEY (跑 agent 时)。
+跑 agent 时需要一个模型 API key。默认使用 Anthropic; 也可通过
+CINDRA_MODEL_PROVIDER=deepseek/glm/openai 切到 OpenAI-compatible 接口。
 """
 from __future__ import annotations
 
 import argparse
 import os
 import sys
+from pathlib import Path
 
 # Windows 默认控制台编码常是 GBK, 打印 emoji (🤖/⚙️/✅) 会 UnicodeEncodeError。
 # 这里在进程内把 stdout/stderr 重配成 UTF-8 (errors=replace 兜底), 让 Windows
@@ -167,7 +169,16 @@ def run_blueprint(args) -> int:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="Cindra-clone —— 自然语言操控 UE5")
+    from .model_provider import config_error, provider_name, selected_model
+
+    p = argparse.ArgumentParser(
+        description="Cindra-clone —— 自然语言操控 UE5",
+        epilog=("模型环境变量: 默认 ANTHROPIC_API_KEY; "
+                "DeepSeek: CINDRA_MODEL_PROVIDER=deepseek + DEEPSEEK_API_KEY; "
+                "GLM/Z.AI: CINDRA_MODEL_PROVIDER=glm + ZAI_API_KEY/GLM_API_KEY; "
+                "也支持 openai/codex/openrouter/siliconflow/moonshot/"
+                "dashscope/ark + 对应 API key。"),
+    )
     p.add_argument("--mode", choices=["chat", "docs", "code", "blueprint"],
                    default="chat",
                    help="chat=改场景(默认), docs=UE问答RAG, code=生成UE C++, "
@@ -180,11 +191,25 @@ def main(argv=None) -> int:
                    help="[code] UE 工程根目录, 不给则用自带示例工程")
     p.add_argument("--once", metavar="MSG", help="执行单条指令/问题后退出")
     p.add_argument("--quiet", action="store_true", help="不打印工具调用细节")
+    p.add_argument("--once-file", metavar="FILE",
+                   help="Read one UTF-8 prompt/question from a file, then exit.")
     args = p.parse_args(argv)
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("⚠️  请先设置 ANTHROPIC_API_KEY 环境变量。", file=sys.stderr)
+    if args.once and args.once_file:
+        p.error("--once and --once-file cannot be used together")
+    if args.once_file:
+        try:
+            args.once = Path(args.once_file).read_text(encoding="utf-8")
+        except OSError as e:
+            print(f"Failed to read --once-file: {e}", file=sys.stderr)
+            return 2
+
+    err = config_error()
+    if err:
+        print(f"⚠️  {err}", file=sys.stderr)
         return 2
+    if not args.quiet:
+        print(f"模型: {provider_name()} / {selected_model()}")
 
     runners = {"chat": run_chat, "docs": run_docs,
                "code": run_code, "blueprint": run_blueprint}

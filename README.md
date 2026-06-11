@@ -34,7 +34,7 @@ python3 -m pip install -r requirements.txt
 python3 -m cindra.docs_index       # 知识库检索 10/10 top-1
 python3 -m cindra.project_index    # 工程符号 5/5 top-1
 
-# 2) 跑四大功能 (需 ANTHROPIC_API_KEY;默认 mock 后端,Mac 上即可)
+# 2) 跑四大功能 (需模型 API key;默认 mock 后端,Mac 上即可)
 export ANTHROPIC_API_KEY=sk-ant-...
 python3 -m cindra.cli                                   # CindraChat (默认)
 python3 -m cindra.cli --mode docs  --once "Actor 和 Pawn 区别"
@@ -47,6 +47,93 @@ python -m cindra.cli --backend ue --once "生成5个cube排成一排"
 ```
 
 CLI 开关: `--mode chat|docs|code|blueprint` · `--backend mock|ue` · `--index lexical|embed` · `--project DIR`
+
+### 模型配置
+
+默认仍走 Anthropic:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+也可以切到 OpenAI-compatible 接口:
+
+```bash
+# DeepSeek
+export CINDRA_MODEL_PROVIDER=deepseek
+export DEEPSEEK_API_KEY=sk-...
+# 可选: export CINDRA_MODEL=deepseek-v4-flash
+
+# GLM / Z.AI
+export CINDRA_MODEL_PROVIDER=glm
+export ZAI_API_KEY=...
+# 可选: export CINDRA_MODEL=glm-5.1
+
+# OpenAI / Codex 账号可用模型
+export CINDRA_MODEL_PROVIDER=openai
+export OPENAI_API_KEY=sk-...
+export CINDRA_MODEL=<你的模型 id>
+```
+
+常用 provider 预设:
+
+| Provider | `CINDRA_MODEL_PROVIDER` | Key 环境变量 | 默认 base URL | 默认模型 |
+|---|---|---|---|---|
+| OpenAI / Codex | `openai` 或 `codex` | `OPENAI_API_KEY` | `https://api.openai.com/v1` | 必须设置 `CINDRA_MODEL` |
+| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | `deepseek-v4-flash` |
+| GLM / Z.AI | `glm` | `ZAI_API_KEY` / `GLM_API_KEY` | `https://api.z.ai/api/paas/v4` | `glm-5.1` |
+| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-4.5` |
+| SiliconFlow | `siliconflow` | `SILICONFLOW_API_KEY` | `https://api.siliconflow.cn/v1` | `Qwen/Qwen3-Coder-480B-A35B-Instruct` |
+| Moonshot / Kimi | `moonshot` 或 `kimi` | `MOONSHOT_API_KEY` | `https://api.moonshot.cn/v1` | `kimi-k2-0711-preview` |
+| DashScope / Qwen | `dashscope` 或 `qwen` | `DASHSCOPE_API_KEY` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-max` |
+| Volcengine Ark / Doubao | `ark` 或 `doubao` | `ARK_API_KEY` | `https://ark.cn-beijing.volces.com/api/v3` | `doubao-seed-1-6` |
+
+高级用法: `CINDRA_API_KEY` / `CINDRA_BASE_URL` / `CINDRA_MODEL` 可覆盖任意 OpenAI-compatible 提供商。
+
+### 在 UE 里可视化使用
+
+仓库带一个源码版 UE Editor 插件:
+
+```text
+ue_plugin/CindraEditorPanel
+```
+
+安装方式:把 `ue_plugin/CindraEditorPanel` 复制到你的 UE 工程 `Plugins/CindraEditorPanel`, 重新打开工程并允许编译。插件会自动打开 `Cindra` 面板, 也可从 `Window > Cindra` 或 `Tools > Cindra` 打开。
+
+插件默认读取这些环境变量:
+
+```powershell
+$env:CINDRA_PROJECT_ROOT = "C:\path\to\cindra"
+$env:CINDRA_PYTHON_EXE = "C:\path\to\cindra\.venv\Scripts\python.exe"
+$env:CINDRA_UE_PYTHONPATH = "D:\UE_5.5\Engine\Plugins\Experimental\PythonScriptPlugin\Content\Python"
+$env:CINDRA_MODEL_PROVIDER = "glm"
+$env:CINDRA_MODEL = "glm-5.1"
+$env:BIGMODEL_API_KEY = "..."
+```
+
+`CINDRA_PROJECT_ROOT` / `CINDRA_PYTHON_EXE` 不设时, 插件会尝试从 UE 工程相邻目录推断。Run 会异步启动 Python, 避免阻塞 UE 主线程导致 Remote Execution 发现不到当前编辑器。每次运行的 prompt 和 stdout/stderr 会写到工程的 `Saved/Cindra` 目录。
+
+先确保第 2 层 `python check_ue.py` 已经 5 阶全过, UE 编辑器开着、关卡加载、视口可见。然后在同一个 PowerShell 里设置模型和 UE 路径:
+
+```powershell
+$env:PYTHONPATH = "D:\UE_5.5\Engine\Plugins\Experimental\PythonScriptPlugin\Content\Python"
+
+# 任选一个模型 provider, 例如 DeepSeek:
+$env:CINDRA_MODEL_PROVIDER = "deepseek"
+$env:DEEPSEEK_API_KEY = "sk-..."
+
+python -m cindra.cli --backend ue --once "生成5个cube排成一排, 中间放个球当主角"
+python -m cindra.cli --backend ue --once "先生成9个cube排成3x3网格"
+python -m cindra.cli --backend ue --once "让场景里的东西像被地震砸过一样"
+```
+
+每条命令结束后切回 UE 视口看 Actor 是否出现/变换。交互式连续操作用:
+
+```powershell
+python -m cindra.cli --backend ue
+```
+
+可用 `/scene` 读回当前场景, `/reset` 清空 agent 对话, `/quit` 退出。
 
 ---
 

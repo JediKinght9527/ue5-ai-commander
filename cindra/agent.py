@@ -1,11 +1,11 @@
-"""agent —— CindraChat 的 Claude agent (改场景)。
+"""agent —— CindraChat 的 agent (改场景)。
 
 共享的 loop/helper 在 base_agent.CindraAgent; 这里只声明 CindraChat 特有的
 系统提示和工具结果格式化。
 """
 from __future__ import annotations
 
-import anthropic
+from typing import Any
 
 from . import scene_tools
 from .base_agent import CindraAgent, _json
@@ -33,7 +33,7 @@ class CindraChatAgent(CindraAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
 
     def __init__(self, transport: Transport,
-                 client: anthropic.Anthropic | None = None,
+                 client: Any | None = None,
                  verbose: bool = True) -> None:
         super().__init__(transport, scene_tools, client=client, verbose=verbose)
 

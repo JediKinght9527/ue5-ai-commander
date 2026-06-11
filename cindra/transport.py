@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import pprint
 from typing import Any, Protocol
 
 from .mock_ue import MockScene
@@ -16,7 +17,7 @@ from .mock_ue import MockScene
 
 def _py_literal(value: Any) -> str:
     """把 Python 值转成可嵌进远程代码的字面量 (只用 json, 安全)。"""
-    return json.dumps(value)
+    return pprint.pformat(value, width=120, compact=True)
 
 
 class Transport(Protocol):
