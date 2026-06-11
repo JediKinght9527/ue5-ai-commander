@@ -73,6 +73,47 @@ TOOLS: list[dict] = [
         },
     },
     {
+        "name": "set_transform",
+        "description": "一次性设置一个 Actor 的位置/旋转/缩放 (任一可省)。需要让物体"
+                       "旋转或缩放 (而不只是平移) 时用它, 比 move_actor 更全。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "location": {"type": "array", "items": {"type": "number"},
+                             "description": "[x,y,z] cm, 省略则不改位置"},
+                "rotation": {"type": "array", "items": {"type": "number"},
+                             "description": "[pitch,yaw,roll] 度, 省略则不改朝向"},
+                "scale": {"type": "array", "items": {"type": "number"},
+                          "description": "[x,y,z], 省略则不改缩放"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "arrange_scene",
+        "description": "对整个场景(或某区域)做语义化批量变换 —— 一句话改变全场氛围, "
+                       "而不用逐个 move。用户说'让这里像被地震砸过/把东西散乱开/全部倒下/"
+                       "排整齐/向外炸开'这类整体效果时用它。它会读回当前所有 Actor, 按风格"
+                       "给每个算一套新的位置+旋转+缩放并应用。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "style": {"type": "string",
+                          "enum": ["earthquake", "scatter", "topple", "tidy",
+                                   "explode"],
+                          "description": "earthquake=震乱+倾斜; scatter=随机散开; "
+                                         "topple=全部倒下; tidy=重排整齐网格; "
+                                         "explode=从中心向外炸开"},
+                "intensity": {"type": "number",
+                              "description": "强度 0~1, 默认 0.6。越大位移/倾斜越夸张"},
+                "prefix": {"type": "string",
+                           "description": "可选, 只对名字以此前缀开头的 Actor 生效"},
+            },
+            "required": ["style"],
+        },
+    },
+    {
         "name": "list_actors",
         "description": "列出场景里所有 Actor 及坐标。做完操作后用它读回状态自检, "
                        "或用户问'现在场景里有什么'时调用。",
@@ -98,6 +139,97 @@ def _grid_positions(count, spacing, columns, origin):
     for i in range(count):
         r, c = divmod(i, columns)
         yield [ox + c * spacing, oy + r * spacing, oz]
+
+
+# ---- arrange_scene: 语义化批量变换 ----
+# 设计要点: dispatch 不需要引擎"懂地震"。agent 调一次 arrange_scene, 我们读回
+# 全场 Actor, 在 Python 里按风格算出每个的新 transform, 再逐个 cnd_set_transform。
+# 纯编排现有原语, mock 上就能跑通、可确定性复现。
+
+def _rand01(seed_str: str, salt: str) -> float:
+    """基于 (名字, salt) 的稳定伪随机 [0,1)。用 md5 而非内置 hash, 不受
+    PYTHONHASHSEED 影响 —— 保证同输入永远同输出 (自检要确定性)。"""
+    import hashlib
+    h = hashlib.md5(f"{seed_str}|{salt}".encode()).hexdigest()
+    return int(h[:8], 16) / 0xFFFFFFFF
+
+
+def _plan_transform(style, name, loc, intensity, center):
+    """给一个 Actor 算新的 (location, rotation, scale)。返回的 dict 只含要改的键。"""
+    k = intensity
+    rx = _rand01(name, "x") * 2 - 1   # [-1,1]
+    ry = _rand01(name, "y") * 2 - 1
+    rz = _rand01(name, "z")
+    ryaw = _rand01(name, "yaw") * 2 - 1
+    x, y, z = loc[0], loc[1], loc[2]
+
+    if style == "earthquake":
+        # 小幅震乱 + 随机倾斜 + 少量下沉
+        return {"location": [x + rx * 120 * k, y + ry * 120 * k,
+                             max(0.0, z - rz * 40 * k)],
+                "rotation": [(_rand01(name, "p") * 2 - 1) * 25 * k,
+                             ryaw * 180,
+                             (_rand01(name, "r") * 2 - 1) * 25 * k]}
+    if style == "scatter":
+        # 大幅随机平移, 不倾斜
+        return {"location": [x + rx * 400 * k, y + ry * 400 * k, z]}
+    if style == "topple":
+        # 几乎全部放倒 (roll≈90), 随机朝向
+        return {"location": [x, y, z],
+                "rotation": [0, ryaw * 180, 90 * (0.6 + 0.4 * rz)]}
+    if style == "explode":
+        # 从场景中心向外推, 越远推得越多 + 抬升
+        dx, dy = x - center[0], y - center[1]
+        dist = max(1.0, (dx * dx + dy * dy) ** 0.5)
+        push = 1.0 + 1.2 * k
+        return {"location": [center[0] + dx / dist * (dist * push),
+                             center[1] + dy / dist * (dist * push),
+                             z + rz * 200 * k],
+                "rotation": [(_rand01(name, "p") * 2 - 1) * 40 * k,
+                             ryaw * 180,
+                             (_rand01(name, "r") * 2 - 1) * 40 * k]}
+    # tidy 在 dispatch 里单独处理 (要全局重排), 这里不该被调到
+    return {}
+
+
+def _arrange(transport, style, intensity, prefix):
+    """读回全场 Actor → 按 style 算新 transform → 批量 cnd_set_transform。"""
+    listed = transport.call("cnd_list")
+    if not listed.get("ok", True):
+        return {"ok": False, "error": listed.get("error", "list 失败")}
+    actors = listed.get("actors", [])
+    if prefix:
+        actors = [a for a in actors if a["name"].startswith(prefix)]
+    if not actors:
+        return {"ok": False, "error": "场景里没有可变换的 Actor"
+                + (f" (前缀 {prefix})" if prefix else "")}
+
+    # 场景中心 (explode 用)
+    xs = [a["location"][0] for a in actors]
+    ys = [a["location"][1] for a in actors]
+    center = [sum(xs) / len(xs), sum(ys) / len(ys)]
+
+    changed = 0
+    if style == "tidy":
+        # 全局重排成整齐网格 (按名字排序保证确定)
+        ordered = sorted(actors, key=lambda a: a["name"])
+        for pos, a in zip(_grid_positions(len(ordered), 200, None,
+                                          [center[0], center[1], 0]), ordered):
+            r = transport.call("cnd_set_transform", name=a["name"],
+                               location=pos, rotation=[0, 0, 0], scale=[1, 1, 1])
+            if r.get("ok"):
+                changed += 1
+    else:
+        for a in actors:
+            plan = _plan_transform(style, a["name"], a["location"],
+                                   intensity, center)
+            r = transport.call("cnd_set_transform", name=a["name"], **plan)
+            if r.get("ok"):
+                changed += 1
+
+    return {"ok": True, "action": "arrange_scene", "style": style,
+            "total": len(actors), "changed": changed}
+
 
 
 def dispatch(transport: Transport, name: str, args: dict[str, Any]) -> dict:
@@ -136,6 +268,18 @@ def dispatch(transport: Transport, name: str, args: dict[str, Any]) -> dict:
     if name == "move_actor":
         return transport.call("cnd_move", name=args["name"],
                               location=args["location"])
+
+    if name == "set_transform":
+        kw = {"name": args["name"]}
+        for key in ("location", "rotation", "scale"):
+            if args.get(key) is not None:
+                kw[key] = args[key]
+        return transport.call("cnd_set_transform", **kw)
+
+    if name == "arrange_scene":
+        return _arrange(transport, args["style"],
+                        float(args.get("intensity", 0.6)),
+                        args.get("prefix"))
 
     if name == "list_actors":
         return transport.call("cnd_list")

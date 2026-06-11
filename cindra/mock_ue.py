@@ -54,6 +54,23 @@ class MockScene:
         return json.dumps({"ok": True, "action": "move", "name": name,
                            "location": self.actors[name]["location"]})
 
+    def cnd_set_transform(self, name, location=None, rotation=None,
+                          scale=None) -> str:
+        """一次性改位置/旋转/缩放 (任一可省)。补 cnd_move 只能改位置的不足 ——
+        语义化批量编辑 (倒塌/地震) 必须能让物体旋转、缩放。和真 UE 侧同名同义。"""
+        a = self.actors.get(name)
+        if a is None:
+            return json.dumps({"ok": False, "error": f"not found: {name}"})
+        if location is not None:
+            a["location"] = [float(x) for x in location]
+        if rotation is not None:
+            a["rotation"] = [float(x) for x in rotation]
+        if scale is not None:
+            a["scale"] = [float(x) for x in scale]
+        return json.dumps({"ok": True, "action": "set_transform", "name": name,
+                           "location": a["location"], "rotation": a["rotation"],
+                           "scale": a["scale"]})
+
     def cnd_list(self) -> str:
         out = [{"name": a["name"], "class": a["type"],
                 "location": a["location"]} for a in self.actors.values()]
@@ -86,3 +103,69 @@ class MockScene:
         rows = "\n".join("|" + "".join(r) + "|" for r in grid)
         legend = ", ".join(sorted({a["type"] for a in self.actors.values()}))
         return f"{border}\n{rows}\n{border}\n俯视图 ({len(self.actors)} 个: {legend})"
+
+
+def _selfcheck() -> int:
+    """端到端自检: 建网格 → 语义批量变换 → 验证每个都被改了 transform。
+    复刻 docs/project 的可复跑自检, 补上 CindraChat 一直缺的回归测试。
+    跑: python3 -m cindra.mock_ue
+    """
+    import json as _json
+    from . import scene_tools
+
+    scene = MockScene()
+
+    # 1) 建 3x3 网格
+    for pos in [[c * 200, r * 200, 0] for r in range(3) for c in range(3)]:
+        scene.cnd_spawn(actor_type="cube", location=pos)
+    n = len(scene.actors)
+    assert n == 9, f"应有 9 个 cube, 实际 {n}"
+    print(f"✅ 建 3x3 网格: {n} 个 cube")
+
+    # 2) 直接验证新原语 cnd_set_transform 能改旋转/缩放 (cnd_move 做不到)
+    name0 = next(iter(scene.actors))
+    scene.cnd_set_transform(name0, rotation=[0, 0, 45], scale=[1, 1, 2])
+    a0 = scene.actors[name0]
+    assert a0["rotation"] == [0, 0, 45] and a0["scale"] == [1, 1, 2], "set_transform 没生效"
+    print(f"✅ cnd_set_transform 改旋转+缩放: {name0} rot={a0['rotation']} scale={a0['scale']}")
+
+    # 3) 经 scene_tools 走 arrange_scene 语义批量编辑 (earthquake)
+    class _T:  # 极简 transport, 直接打到这个 scene
+        def call(self, func, **kw):
+            return _json.loads(getattr(scene, func)(**kw))
+
+    before = {k: list(v["location"]) for k, v in scene.actors.items()}
+    res = scene_tools.dispatch(_T(), "arrange_scene",
+                               {"style": "earthquake", "intensity": 1.0})
+    assert res.get("ok"), f"arrange_scene 失败: {res}"
+    moved = sum(1 for k, v in scene.actors.items()
+                if v["location"] != before[k])
+    tilted = sum(1 for v in scene.actors.values()
+                 if v["rotation"] != [0, 0, 0])
+    assert moved == 9, f"earthquake 应移动全部 9 个, 实际 {moved}"
+    assert tilted >= 1, "earthquake 应让物体倾斜"
+    print(f"✅ arrange_scene(earthquake): {res['changed']}/{n} 个被变换, "
+          f"{moved} 位移, {tilted} 倾斜")
+
+    # 4) 确定性: 同输入同结果 (基于名字做种子)
+    scene2 = MockScene()
+    for pos in [[c * 200, r * 200, 0] for r in range(3) for c in range(3)]:
+        scene2.cnd_spawn(actor_type="cube", location=pos)
+
+    class _T2:
+        def call(self, func, **kw):
+            return _json.loads(getattr(scene2, func)(**kw))
+    scene_tools.dispatch(_T2(), "arrange_scene",
+                         {"style": "earthquake", "intensity": 1.0})
+    same = all(scene.actors[k]["location"] == scene2.actors[k]["location"]
+               for k in scene.actors)
+    assert same, "arrange_scene 不确定 —— 同输入产出不一致"
+    print("✅ 确定性: 同输入两次产出一致")
+
+    print("\n场景自检 4/4 通过。地震后俯视图:")
+    print(scene.render_topdown())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_selfcheck())

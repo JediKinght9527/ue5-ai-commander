@@ -82,6 +82,33 @@ def cnd_move(name, location):
                        "location": [loc.x, loc.y, loc.z]})
 
 
+def cnd_set_transform(name, location=None, rotation=None, scale=None):
+    """一次性改位置/旋转/缩放 (任一可省)。语义化批量编辑 (地震/倒塌) 必须能改
+    旋转和缩放, cnd_move 只能改位置。和 mock_ue 同名同义。"""
+    actor = _find_by_label(name)
+    if not actor:
+        return json.dumps({"ok": False, "error": "not found: %s" % name})
+    with unreal.ScopedEditorTransaction("Cindra SetTransform"):
+        if location is not None:
+            actor.set_actor_location(
+                unreal.Vector(float(location[0]), float(location[1]),
+                              float(location[2])), False, True)
+        if rotation is not None:
+            actor.set_actor_rotation(
+                unreal.Rotator(float(rotation[0]), float(rotation[1]),
+                               float(rotation[2])), True)
+        if scale is not None:
+            actor.set_actor_scale3d(
+                unreal.Vector(float(scale[0]), float(scale[1]), float(scale[2])))
+    loc = actor.get_actor_location()
+    rot = actor.get_actor_rotation()
+    scl = actor.get_actor_scale3d()
+    return json.dumps({"ok": True, "action": "set_transform", "name": name,
+                       "location": [loc.x, loc.y, loc.z],
+                       "rotation": [rot.pitch, rot.yaw, rot.roll],
+                       "scale": [scl.x, scl.y, scl.z]})
+
+
 def cnd_list():
     """列出场景里所有 Actor 的名字 + 坐标 —— 给 agent 读回状态自检。"""
     out = []
