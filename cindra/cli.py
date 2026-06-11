@@ -28,6 +28,15 @@ import argparse
 import os
 import sys
 
+# Windows 默认控制台编码常是 GBK, 打印 emoji (🤖/⚙️/✅) 会 UnicodeEncodeError。
+# 这里在进程内把 stdout/stderr 重配成 UTF-8 (errors=replace 兜底), 让 Windows
+# 上开箱即用, 不必每次手动设 PYTHONIOENCODING/PYTHONUTF8。Py3.7+ 有 reconfigure。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass  # 非标准流 (被重定向/包裹) 时静默跳过
+
 
 def build_transport(backend: str):
     from .transport import MockTransport, RemoteExecTransport
