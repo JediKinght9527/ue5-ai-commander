@@ -1,11 +1,60 @@
-# Cindra —— CindraChat 闭环 (自然语言操控 UE5 场景)
+# Cindra (灰星) —— 自然语言操控 UE5 的 AI 工具
 
-Cindra 四大功能里的 **CindraChat (改场景)**:
+> Cindra = **cinder**(灰烬) + **astra**(星)。用一句话(中文/英文)操控 Unreal Engine 5:
+> 改场景、写 C++、问 UE、搭蓝图。Claude agent 拆解意图 → 调工具 → 在引擎里真正执行,
+> 操作后读回状态自检,而非"自信地以为成了"。
+
+## 四大功能
+
+| 功能 | 干什么 | 一句话举例 |
+|---|---|---|
+| **CindraChat** | 改场景 | "生成 10 个 cube 排成网格,再放个球当主角" |
+| **CindraDocs** | UE 问答 (RAG) | "Actor 和 Pawn 有什么区别?" |
+| **CindraCode** | 写符合工程规范的 C++ | "给角色加一个冲刺技能" |
+| **CindraBlueprint** | 搭蓝图事件图 | "BeginPlay 时打印 hello" |
+
+四块**共用同一套 agent loop 骨架 + mock/real 双后端**:在没装 UE 的 Mac 上离线验证逻辑
+(确定性自检全绿),原样搬到装了 UE5 的 Windows 接真引擎——接真引擎只换 transport,
+agent 与工具层不动。
+
+## 现状
+
+- ✅ 四大功能 mock 验证全部通过 (docs 检索 10/10、project 符号 5/5、blueprint 建图、chat 网格)
+- 🚧 真 UE5 闭环:在 Windows + UE5.5 上机联调中 —— 见 [`WINDOWS_SETUP_5.5.md`](WINDOWS_SETUP_5.5.md)
+- 🔜 接 Tripo3D 文字生成真实 3D 模型 (补"只能放基础形状"的短板) —— 方案见 [`CINDRA_ASSETS_TRIPO_PLAN.md`](CINDRA_ASSETS_TRIPO_PLAN.md)
+
+## 快速开始
+
+```bash
+git clone https://github.com/JediKinght9527/cindra.git
+cd cindra
+python3 -m pip install -r requirements.txt
+
+# 1) 离线自检 (无需 UE / 无需 API key / 无需联网) —— 先确认基线全绿
+python3 -m cindra.docs_index       # 知识库检索 10/10 top-1
+python3 -m cindra.project_index    # 工程符号 5/5 top-1
+
+# 2) 跑四大功能 (需 ANTHROPIC_API_KEY;默认 mock 后端,Mac 上即可)
+export ANTHROPIC_API_KEY=sk-ant-...
+python3 -m cindra.cli                                   # CindraChat (默认)
+python3 -m cindra.cli --mode docs  --once "Actor 和 Pawn 区别"
+python3 -m cindra.cli --mode code  --once "给角色加冲刺技能"
+python3 -m cindra.cli --mode blueprint --once "BeginPlay 时打印 hello"
+
+# 3) 接真 UE5 (在 Windows 上,编辑器开着) —— 先跑诊断,再跑闭环
+python check_ue.py                                      # 5 阶管道诊断
+python -m cindra.cli --backend ue --once "生成5个cube排成一排"
+```
+
+CLI 开关: `--mode chat|docs|code|blueprint` · `--backend mock|ue` · `--index lexical|embed` · `--project DIR`
+
+---
+
+## 1. CindraChat —— 自然语言操控 UE5 场景
+
 用自然语言描述想要的场景 → Claude agent 调用工具 → 真正在 UE5 引擎里
-spawn / 删除 / 移动 Actor。
-
-这是整套 Cindra 的第一块。后续 CindraCode / CindraDocs / CindraBlueprint
-会复用这里的 agent + transport 骨架。
+spawn / 删除 / 移动 Actor。这是整套 Cindra 的第一块,后续三块复用这里的
+agent + transport 骨架。
 
 ## 它是怎么工作的
 
