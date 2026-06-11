@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 密钥 / 环境 (永远别提交)
+.env
+*.key
+secrets.*
+
+# Tripo / 生成产物
+output/
+*.glb
+*.fbx
+*.gltf
+*.obj
+!**/placeholder.glb
+
+# 打包产物
+*.zip
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store

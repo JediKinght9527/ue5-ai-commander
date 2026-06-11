@@ -1,0 +1,5 @@
+anthropic>=0.106
+
+# CindraDocs 的默认 lexical 检索是纯标准库, 无新增依赖。
+# 只有 --index embed (向量检索) 才需要 embedding 提供者; 按你选的方案另装,
+# 故不在此处强制。lexical 在 Mac 上离线即可验证检索质量。
