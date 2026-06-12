@@ -11,6 +11,14 @@ from typing import Any
 
 from .transport import Transport
 
+CINDRA_ACTOR_PREFIX = "Cindra_"
+
+
+def _actor_name(actor_type: str, explicit_name: str | None = None) -> str | None:
+    if explicit_name:
+        return explicit_name
+    return f"{CINDRA_ACTOR_PREFIX}{actor_type.capitalize()}"
+
 # Claude tool 定义 (JSON schema)。描述里写清"何时用", 对新 Opus 触发率有提升。
 TOOLS: list[dict] = [
     {
@@ -235,13 +243,14 @@ def _arrange(transport, style, intensity, prefix):
 def dispatch(transport: Transport, name: str, args: dict[str, Any]) -> dict:
     """执行一个工具调用, 返回结果 dict (给 agent 当 tool_result)。"""
     if name == "spawn_actor":
+        actor_type = args.get("actor_type", "cube")
         return transport.call(
             "cnd_spawn",
-            actor_type=args.get("actor_type", "cube"),
-            name=args.get("name"),
-            location=args.get("location", [0, 0, 0]),
+            actor_type=actor_type,
+            name=_actor_name(actor_type, args.get("name")),
+            location=args.get("location", [0, 0, 300]),
             rotation=args.get("rotation", [0, 0, 0]),
-            scale=args.get("scale", [1, 1, 1]),
+            scale=args.get("scale", [2, 2, 2]),
         )
 
     if name == "spawn_grid":
@@ -253,8 +262,14 @@ def dispatch(transport: Transport, name: str, args: dict[str, Any]) -> dict:
         origin = args.get("origin", [0, 0, 0])
         atype = args.get("actor_type", "cube")
         spawned = []
-        for pos in _grid_positions(count, spacing, columns, origin):
-            r = transport.call("cnd_spawn", actor_type=atype, location=pos)
+        for idx, pos in enumerate(_grid_positions(count, spacing, columns, origin), start=1):
+            r = transport.call(
+                "cnd_spawn",
+                actor_type=atype,
+                name=f"{CINDRA_ACTOR_PREFIX}{atype.capitalize()}_{idx:03d}",
+                location=pos,
+                scale=[1.5, 1.5, 1.5],
+            )
             if r.get("ok"):
                 spawned.append(r["name"])
             else:
@@ -285,6 +300,6 @@ def dispatch(transport: Transport, name: str, args: dict[str, Any]) -> dict:
         return transport.call("cnd_list")
 
     if name == "clear_scene":
-        return transport.call("cnd_clear", prefix=args.get("prefix"))
+        return transport.call("cnd_clear", prefix=args.get("prefix") or CINDRA_ACTOR_PREFIX)
 
     return {"ok": False, "error": f"unknown tool: {name}"}

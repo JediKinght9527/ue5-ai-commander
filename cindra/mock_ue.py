@@ -8,7 +8,14 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import Any
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 
 class MockScene:
@@ -25,7 +32,7 @@ class MockScene:
         actor_type = (actor_type or "cube").lower()
         if not name:
             self._counters[actor_type] = self._counters.get(actor_type, 0) + 1
-            name = f"{actor_type}_{self._counters[actor_type]}"
+            name = f"Cindra_{actor_type.capitalize()}_{self._counters[actor_type]:03d}"
         # 名字冲突就加后缀, 模拟 UE 的唯一 label 行为
         base, i = name, 1
         while name in self.actors:

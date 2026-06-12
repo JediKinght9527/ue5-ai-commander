@@ -74,7 +74,7 @@ class RemoteExecTransport:
         conn.start()
         # 连第一个广播自己的引擎节点
         import time
-        for _ in range(50):
+        for _ in range(300):
             if conn.remote_nodes:
                 break
             time.sleep(0.1)

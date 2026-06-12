@@ -36,10 +36,32 @@ def _find_by_label(name):
     return None
 
 
+def _unique_label(base):
+    labels = set()
+    for a in _eas().get_all_level_actors():
+        labels.add(a.get_actor_label())
+    if base not in labels:
+        return base
+    i = 2
+    while True:
+        candidate = "%s_%03d" % (base, i)
+        if candidate not in labels:
+            return candidate
+        i += 1
+
+
+def _select_actor(actor):
+    try:
+        _eas().set_selected_level_actors([actor])
+    except Exception:
+        pass
+
+
 def cnd_spawn(actor_type="cube", name=None, location=(0, 0, 0),
                 rotation=(0, 0, 0), scale=(1, 1, 1)):
     """在场景里生成一个基础形状 Actor。返回它的信息。"""
     actor_type = (actor_type or "cube").lower()
+    label = _unique_label(name or ("Cindra_%s" % actor_type.capitalize()))
     mesh_path = _SHAPE_MESHES.get(actor_type, _SHAPE_MESHES["cube"])
     loc = unreal.Vector(float(location[0]), float(location[1]), float(location[2]))
     rot = unreal.Rotator(float(rotation[0]), float(rotation[1]), float(rotation[2]))
@@ -51,8 +73,8 @@ def cnd_spawn(actor_type="cube", name=None, location=(0, 0, 0),
         actor.static_mesh_component.set_static_mesh(mesh)
         actor.set_actor_scale3d(
             unreal.Vector(float(scale[0]), float(scale[1]), float(scale[2])))
-        if name:
-            actor.set_actor_label(name)
+        actor.set_actor_label(label)
+        _select_actor(actor)
     return json.dumps({
         "ok": True, "action": "spawn", "name": actor.get_actor_label(),
         "type": actor_type,

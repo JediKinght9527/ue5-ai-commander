@@ -44,7 +44,19 @@ static FString CindraProjectRoot()
 static FString CindraPythonExe()
 {
     const FString Env = ReadEnvironmentVar(TEXT("CINDRA_PYTHON_EXE"));
-    return Env.IsEmpty() ? FPaths::Combine(CindraProjectRoot(), TEXT(".venv"), TEXT("Scripts"), TEXT("python.exe")) : Env;
+    if (!Env.IsEmpty())
+    {
+        return Env;
+    }
+
+    const FString EngineDir = FPaths::ConvertRelativePathToFull(FPaths::EngineDir());
+    const FString UEPython = FPaths::Combine(EngineDir, TEXT("Binaries"), TEXT("ThirdParty"), TEXT("Python3"), TEXT("Win64"), TEXT("python.exe"));
+    if (FPaths::FileExists(UEPython))
+    {
+        return UEPython;
+    }
+
+    return FPaths::Combine(CindraProjectRoot(), TEXT(".venv"), TEXT("Scripts"), TEXT("python.exe"));
 }
 
 static FString CindraUEPythonPath()
@@ -185,14 +197,28 @@ TSharedRef<SDockTab> FCindraEditorPanelModule::SpawnCindraTab(const FSpawnTabArg
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 4)
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("CindraTitle", "Cindra UE Assistant"))
+                    .Text(LOCTEXT("CindraTitle", "Cindra Scene Panel"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 20))
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 10)
                 [
                     SNew(STextBlock)
                     .AutoWrapText(true)
-                    .Text(LOCTEXT("CindraSubtitle", "在编辑器里直接改当前关卡。Chat UE 会调用真 UE；Docs / Code / Blueprint 走离线助手。"))
+                    .Text(LOCTEXT("CindraSubtitle", "Scene-first UE editor panel. Quick scene commands run directly; complex prompts use the selected model. Logs are written to Saved/Cindra."))
+                ]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                    [ SNew(SButton).Text(LOCTEXT("QuickSphere", "Visible Sphere")).OnClicked_Lambda([this]() { const FString P = TEXT("生成一个明显可见的大球, 名字以Cindra_开头, 放在[0,0,300]"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                    [ SNew(SButton).Text(LOCTEXT("QuickCubes", "5 Cubes")).OnClicked_Lambda([this]() { const FString P = TEXT("生成5个cube排成一排, 都用Cindra_开头命名"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                    [ SNew(SButton).Text(LOCTEXT("QuickGrid", "3x3 Grid")).OnClicked_Lambda([this]() { const FString P = TEXT("生成9个cube排成3x3网格, 都用Cindra_开头命名"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                    [ SNew(SButton).Text(LOCTEXT("QuickScene", "Read Scene")).OnClicked_Lambda([this]() { const FString P = TEXT("场景里现在有什么? 请列出来, 重点列出Cindra_开头的物体"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    + SHorizontalBox::Slot().AutoWidth()
+                    [ SNew(SButton).Text(LOCTEXT("QuickClear", "Clear Cindra")).OnClicked_Lambda([this]() { const FString P = TEXT("清除所有Cindra_开头的物体"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
                 [
@@ -223,13 +249,13 @@ TSharedRef<SDockTab> FCindraEditorPanelModule::SpawnCindraTab(const FSpawnTabArg
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
                 [
                     SAssignNew(ApiKeyBox, SEditableTextBox)
-                    .HintText(LOCTEXT("ApiKeyHint", "Optional API key override for this panel session"))
+                    .HintText(LOCTEXT("ApiKeyHint", "Optional API key override. Quick scene buttons do not need a key."))
                     .IsPassword(true)
                 ]
                 + SVerticalBox::Slot().FillHeight(0.28f).Padding(0, 0, 0, 8)
                 [
                     SAssignNew(PromptBox, SMultiLineEditableTextBox)
-                    .Text(FText::FromString(TEXT("生成一个小球")))
+                    .Text(FText::FromString(TEXT("生成一个明显可见的大球, 名字以Cindra_开头, 放在[0,0,300]")))
                     .HintText(LOCTEXT("PromptHint", "生成5个cube排成一排, 中间放个球当主角"))
                     .AutoWrapText(true)
                 ]
@@ -239,7 +265,7 @@ TSharedRef<SDockTab> FCindraEditorPanelModule::SpawnCindraTab(const FSpawnTabArg
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                     [ SNew(SButton).Text(LOCTEXT("RunButton", "Run")).OnClicked_Lambda([this]() { RunPrompt(PromptBox.IsValid() ? PromptBox->GetText().ToString() : FString()); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                    [ SNew(SButton).Text(LOCTEXT("SceneButton", "Read Scene")).OnClicked_Lambda([this]() { const FString OldMode = ModeBox->GetText().ToString(); const FString OldBackend = BackendBox->GetText().ToString(); ModeBox->SetText(FText::FromString(TEXT("chat"))); BackendBox->SetText(FText::FromString(TEXT("ue"))); RunPrompt(TEXT("场景里现在有什么? 请列出来")); ModeBox->SetText(FText::FromString(OldMode)); BackendBox->SetText(FText::FromString(OldBackend)); return FReply::Handled(); }) ]
+                    [ SNew(SButton).Text(LOCTEXT("SceneButton", "Read Scene")).OnClicked_Lambda([this]() { const FString OldMode = ModeBox->GetText().ToString(); const FString OldBackend = BackendBox->GetText().ToString(); ModeBox->SetText(FText::FromString(TEXT("chat"))); BackendBox->SetText(FText::FromString(TEXT("ue"))); RunPrompt(TEXT("场景里现在有什么? 请列出来, 重点列出Cindra_开头的物体")); ModeBox->SetText(FText::FromString(OldMode)); BackendBox->SetText(FText::FromString(OldBackend)); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth()
                     [ SNew(SButton).Text(LOCTEXT("ClearLogButton", "Clear Log")).OnClicked_Lambda([this]() { if (LogBox.IsValid()) { LogBox->SetText(FText::GetEmpty()); } return FReply::Handled(); }) ]
                 ]
@@ -276,6 +302,9 @@ void FCindraEditorPanelModule::RunPrompt(const FString& Prompt)
     FString StdOut;
     FString StdErr;
     const FString Args = PreparePythonArgs(Prompt);
+    AppendLog(FString::Printf(TEXT("ProjectRoot: %s"), *CindraProjectRoot()));
+    AppendLog(FString::Printf(TEXT("PythonExe: %s"), *CindraPythonExe()));
+    AppendLog(FString::Printf(TEXT("UEPythonPath: %s"), *CindraUEPythonPath()));
     AppendLog(FString::Printf(TEXT("PromptFile: %s"), *LastPromptPath));
     AppendLog(FString::Printf(TEXT("OutputFile: %s"), *LastLogPath));
     FString Command = FString::Printf(
@@ -295,7 +324,7 @@ void FCindraEditorPanelModule::RunPrompt(const FString& Prompt)
         return;
     }
     bRunInProgress = true;
-    AppendLog(TEXT("Running async..."));
+    AppendLog(TEXT("Started. Keep the editor open and wait for the result below."));
     FTSTicker::GetCoreTicker().AddTicker(
         FTickerDelegate::CreateRaw(this, &FCindraEditorPanelModule::PollRunProcess),
         0.5f);
@@ -370,7 +399,7 @@ FString FCindraEditorPanelModule::PreparePythonArgs(const FString& Prompt)
         *Mode, *Backend, *Provider, *Model, *KeyEnv, *MaskKey(ApiKey)));
     if (ApiKey.IsEmpty())
     {
-        AppendLog(FString::Printf(TEXT("ERROR: Missing API key env var: %s"), *KeyEnv));
+        AppendLog(FString::Printf(TEXT("API key not set in %s. Quick scene commands still run; model fallback needs a key."), *KeyEnv));
     }
 
     return FString::Printf(
