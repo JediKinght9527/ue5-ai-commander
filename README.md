@@ -4,6 +4,9 @@
 > 改场景、写 C++、问 UE、搭蓝图。Claude agent 拆解意图 → 调工具 → 在引擎里真正执行,
 > 操作后读回状态自检,而非"自信地以为成了"。
 
+命令优先 / Claude Code / Codex / 自定义 CLI 移植方式见
+[`COMMAND_RUNNERS.md`](COMMAND_RUNNERS.md)。
+
 ## 四大功能
 
 | 功能 | 干什么 | 一句话举例 |

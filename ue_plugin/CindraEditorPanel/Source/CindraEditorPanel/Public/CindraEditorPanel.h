@@ -31,5 +31,6 @@ private:
     TSharedPtr<class SEditableTextBox> ProviderBox;
     TSharedPtr<class SEditableTextBox> ModelBox;
     TSharedPtr<class SEditableTextBox> KeyEnvBox;
+    TSharedPtr<class SEditableTextBox> RunnerBox;
     TSharedPtr<class SEditableTextBox> ApiKeyBox;
 };

@@ -241,9 +241,11 @@ TSharedRef<SDockTab> FCindraEditorPanelModule::SpawnCindraTab(const FSpawnTabArg
                     [ SAssignNew(BackendBox, SEditableTextBox).Text(FText::FromString(TEXT("ue"))).HintText(LOCTEXT("BackendHint", "backend")) ]
                     + SHorizontalBox::Slot().FillWidth(0.18f).Padding(0, 0, 6, 0)
                     [ SAssignNew(ProviderBox, SEditableTextBox).Text(FText::FromString(TEXT("glm"))).HintText(LOCTEXT("ProviderHint", "provider")) ]
-                    + SHorizontalBox::Slot().FillWidth(0.23f).Padding(0, 0, 6, 0)
+                    + SHorizontalBox::Slot().FillWidth(0.18f).Padding(0, 0, 6, 0)
+                    [ SAssignNew(RunnerBox, SEditableTextBox).Text(FText::FromString(TEXT("cindra"))).HintText(LOCTEXT("RunnerHint", "runner")) ]
+                    + SHorizontalBox::Slot().FillWidth(0.18f).Padding(0, 0, 6, 0)
                     [ SAssignNew(ModelBox, SEditableTextBox).Text(FText::FromString(TEXT("glm-5.1"))).HintText(LOCTEXT("ModelHint", "model")) ]
-                    + SHorizontalBox::Slot().FillWidth(0.23f)
+                    + SHorizontalBox::Slot().FillWidth(0.28f)
                     [ SAssignNew(KeyEnvBox, SEditableTextBox).Text(FText::FromString(TEXT("BIGMODEL_API_KEY"))).HintText(LOCTEXT("KeyEnvHint", "key env")) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
@@ -364,6 +366,11 @@ FString FCindraEditorPanelModule::PreparePythonArgs(const FString& Prompt)
     const FString Mode = ModeBox.IsValid() ? ModeBox->GetText().ToString() : TEXT("chat");
     const FString Backend = BackendBox.IsValid() ? BackendBox->GetText().ToString() : TEXT("ue");
     const FString Provider = ProviderBox.IsValid() ? ProviderBox->GetText().ToString() : TEXT("glm");
+    FString Runner = RunnerBox.IsValid() ? RunnerBox->GetText().ToString() : TEXT("cindra");
+    if (Runner.TrimStartAndEnd().IsEmpty())
+    {
+        Runner = TEXT("cindra");
+    }
     const FString Model = ModelBox.IsValid() ? ModelBox->GetText().ToString() : TEXT("glm-5.1");
     const FString KeyEnv = KeyEnvBox.IsValid() ? KeyEnvBox->GetText().ToString() : TEXT("BIGMODEL_API_KEY");
     FString ApiKey = ApiKeyBox.IsValid() ? ApiKeyBox->GetText().ToString() : FString();
@@ -383,6 +390,7 @@ FString FCindraEditorPanelModule::PreparePythonArgs(const FString& Prompt)
     FPlatformMisc::SetEnvironmentVar(TEXT("PYTHONPATH"), *CindraUEPythonPath());
     FPlatformMisc::SetEnvironmentVar(TEXT("PYTHONIOENCODING"), TEXT("utf-8"));
     FPlatformMisc::SetEnvironmentVar(TEXT("PYTHONUTF8"), TEXT("1"));
+    FPlatformMisc::SetEnvironmentVar(TEXT("CINDRA_RUNNER"), *Runner);
     FPlatformMisc::SetEnvironmentVar(TEXT("CINDRA_MODEL_PROVIDER"), *Provider);
     FPlatformMisc::SetEnvironmentVar(TEXT("CINDRA_MODEL"), *Model);
 
@@ -395,16 +403,16 @@ FString FCindraEditorPanelModule::PreparePythonArgs(const FString& Prompt)
     FFileHelper::SaveStringToFile(Prompt, *LastPromptPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 
     AppendLog(FString::Printf(
-        TEXT("Cindra panel mode=%s backend=%s provider=%s model=%s keyEnv=%s key=%s"),
-        *Mode, *Backend, *Provider, *Model, *KeyEnv, *MaskKey(ApiKey)));
+        TEXT("Cindra panel runner=%s mode=%s backend=%s provider=%s model=%s keyEnv=%s key=%s"),
+        *Runner, *Mode, *Backend, *Provider, *Model, *KeyEnv, *MaskKey(ApiKey)));
     if (ApiKey.IsEmpty())
     {
         AppendLog(FString::Printf(TEXT("API key not set in %s. Quick scene commands still run; model fallback needs a key."), *KeyEnv));
     }
 
     return FString::Printf(
-        TEXT("-m cindra.cli --mode \"%s\" --backend \"%s\" --once-file \"%s\""),
-        *Mode, *Backend, *LastPromptPath);
+        TEXT("-m cindra.command_bus --runner \"%s\" --mode \"%s\" --backend \"%s\" --prompt-file \"%s\""),
+        *Runner, *Mode, *Backend, *LastPromptPath);
 }
 
 void FCindraEditorPanelModule::AppendLog(const FString& Line)

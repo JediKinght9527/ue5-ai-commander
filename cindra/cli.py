@@ -198,7 +198,7 @@ def main(argv=None) -> int:
         p.error("--once and --once-file cannot be used together")
     if args.once_file:
         try:
-            args.once = Path(args.once_file).read_text(encoding="utf-8")
+            args.once = Path(args.once_file).read_text(encoding="utf-8-sig")
         except OSError as e:
             print(f"Failed to read --once-file: {e}", file=sys.stderr)
             return 2
