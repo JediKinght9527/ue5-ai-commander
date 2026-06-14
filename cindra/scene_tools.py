@@ -251,6 +251,8 @@ def dispatch(transport: Transport, name: str, args: dict[str, Any]) -> dict:
             location=args.get("location", [0, 0, 300]),
             rotation=args.get("rotation", [0, 0, 0]),
             scale=args.get("scale", [2, 2, 2]),
+            folder=args.get("folder"),
+            tags=args.get("tags"),
         )
 
     if name == "spawn_grid":

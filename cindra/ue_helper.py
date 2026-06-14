@@ -58,7 +58,8 @@ def _select_actor(actor):
 
 
 def cnd_spawn(actor_type="cube", name=None, location=(0, 0, 0),
-                rotation=(0, 0, 0), scale=(1, 1, 1)):
+                rotation=(0, 0, 0), scale=(1, 1, 1), folder=None,
+                tags=None):
     """在场景里生成一个基础形状 Actor。返回它的信息。"""
     actor_type = (actor_type or "cube").lower()
     label = _unique_label(name or ("Cindra_%s" % actor_type.capitalize()))
@@ -74,11 +75,20 @@ def cnd_spawn(actor_type="cube", name=None, location=(0, 0, 0),
         actor.set_actor_scale3d(
             unreal.Vector(float(scale[0]), float(scale[1]), float(scale[2])))
         actor.set_actor_label(label)
+        if folder:
+            try:
+                actor.set_folder_path(folder)
+            except Exception:
+                pass
+        if tags:
+            actor.tags = [unreal.Name(str(tag)) for tag in tags]
         _select_actor(actor)
     return json.dumps({
         "ok": True, "action": "spawn", "name": actor.get_actor_label(),
         "type": actor_type,
         "location": [loc.x, loc.y, loc.z],
+        "folder": str(folder or ""),
+        "tags": [str(tag) for tag in (tags or [])],
     })
 
 
@@ -136,9 +146,15 @@ def cnd_list():
     out = []
     for a in _eas().get_all_level_actors():
         loc = a.get_actor_location()
+        try:
+            folder = str(a.get_folder_path())
+        except Exception:
+            folder = ""
         out.append({"name": a.get_actor_label(),
                     "class": a.get_class().get_name(),
-                    "location": [loc.x, loc.y, loc.z]})
+                    "location": [loc.x, loc.y, loc.z],
+                    "folder": folder,
+                    "tags": [str(tag) for tag in getattr(a, "tags", [])]})
     return json.dumps({"ok": True, "action": "list", "actors": out})
 
 

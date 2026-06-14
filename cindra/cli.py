@@ -69,9 +69,14 @@ def _repl(agent, banner: str, commands: dict, *, once: str | None = None,
 
 def run_chat(args) -> int:
     from .agent import CindraChatAgent
+    from .blockout_builder import try_handle_blockout_prompt
     from .scene_intent import try_handle_scene_prompt
 
     transport = build_transport(args.backend)
+    if args.once and try_handle_blockout_prompt(
+        transport, args.once, verbose=not args.quiet
+    ):
+        return 0
     if args.once and try_handle_scene_prompt(
         transport, args.once, verbose=not args.quiet
     ):

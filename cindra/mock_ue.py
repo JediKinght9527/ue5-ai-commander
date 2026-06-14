@@ -28,7 +28,8 @@ class MockScene:
     # ---- cnd_*: 和 ue_helper.UE_HELPER_SOURCE 里同名同义 ----
 
     def cnd_spawn(self, actor_type="cube", name=None, location=(0, 0, 0),
-                    rotation=(0, 0, 0), scale=(1, 1, 1)) -> str:
+                    rotation=(0, 0, 0), scale=(1, 1, 1), folder=None,
+                    tags=None) -> str:
         actor_type = (actor_type or "cube").lower()
         if not name:
             self._counters[actor_type] = self._counters.get(actor_type, 0) + 1
@@ -43,6 +44,8 @@ class MockScene:
             "location": [float(x) for x in location],
             "rotation": [float(x) for x in rotation],
             "scale": [float(x) for x in scale],
+            "folder": folder or "",
+            "tags": [str(x) for x in (tags or [])],
         }
         return json.dumps({"ok": True, "action": "spawn", "name": name,
                            "type": actor_type,
@@ -80,7 +83,9 @@ class MockScene:
 
     def cnd_list(self) -> str:
         out = [{"name": a["name"], "class": a["type"],
-                "location": a["location"]} for a in self.actors.values()]
+                "location": a["location"],
+                "folder": a.get("folder", ""),
+                "tags": a.get("tags", [])} for a in self.actors.values()]
         return json.dumps({"ok": True, "action": "list", "actors": out})
 
     def cnd_clear(self, prefix=None) -> str:

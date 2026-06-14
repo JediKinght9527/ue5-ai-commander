@@ -106,7 +106,7 @@ void FCindraEditorPanelModule::StartupModule()
         CindraTabName,
         FOnSpawnTab::CreateRaw(this, &FCindraEditorPanelModule::SpawnCindraTab))
         .SetDisplayName(LOCTEXT("CindraTabTitle", "Cindra"))
-        .SetTooltipText(LOCTEXT("CindraTabTooltip", "AI scene, docs, code, and blueprint assistant."))
+        .SetTooltipText(LOCTEXT("CindraTabTooltip", "Action-game blockout director for Unreal Engine."))
         .SetMenuType(ETabSpawnerMenuType::Enabled);
 
     UToolMenus::RegisterStartupCallback(
@@ -197,28 +197,28 @@ TSharedRef<SDockTab> FCindraEditorPanelModule::SpawnCindraTab(const FSpawnTabArg
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 4)
                 [
                     SNew(STextBlock)
-                    .Text(LOCTEXT("CindraTitle", "Cindra Scene Panel"))
+                    .Text(LOCTEXT("CindraTitle", "Cindra Action Blockout Director"))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 20))
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 10)
                 [
                     SNew(STextBlock)
                     .AutoWrapText(true)
-                    .Text(LOCTEXT("CindraSubtitle", "Scene-first UE editor panel. Quick scene commands run directly; complex prompts use the selected model. Logs are written to Saved/Cindra."))
+                    .Text(LOCTEXT("CindraSubtitle", "Built for mythic action-game production: editable combat spaces, boss arenas, encounter lanes, markers, tags, and audit logs inside UE."))
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
                 [
                     SNew(SHorizontalBox)
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                    [ SNew(SButton).Text(LOCTEXT("QuickSphere", "Visible Sphere")).OnClicked_Lambda([this]() { const FString P = TEXT("生成一个明显可见的大球, 名字以Cindra_开头, 放在[0,0,300]"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    [ SNew(SButton).Text(LOCTEXT("QuickBossArena", "Boss Arena")).OnClicked_Lambda([this]() { const FString P = TEXT("生成一个黑神话风格首领战白盒, 有玩家出生点、Boss出生点、躲避路线、阶段门、神龛和目标点"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                    [ SNew(SButton).Text(LOCTEXT("QuickCubes", "5 Cubes")).OnClicked_Lambda([this]() { const FString P = TEXT("生成5个cube排成一排, 都用Cindra_开头命名"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    [ SNew(SButton).Text(LOCTEXT("QuickGauntlet", "Gauntlet")).OnClicked_Lambda([this]() { const FString P = TEXT("生成一个黑神话式连战走廊白盒, 三段战斗节奏, 敌人点位、关卡门和最终奖励点"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                    [ SNew(SButton).Text(LOCTEXT("QuickGrid", "3x3 Grid")).OnClicked_Lambda([this]() { const FString P = TEXT("生成9个cube排成3x3网格, 都用Cindra_开头命名"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    [ SNew(SButton).Text(LOCTEXT("QuickArena", "Arena")).OnClicked_Lambda([this]() { const FString P = TEXT("生成一个竞技场关卡白盒, 带围墙、地面、掩体、玩家出生点和目标点"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                    [ SNew(SButton).Text(LOCTEXT("QuickScene", "Read Scene")).OnClicked_Lambda([this]() { const FString P = TEXT("场景里现在有什么? 请列出来, 重点列出Cindra_开头的物体"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    [ SNew(SButton).Text(LOCTEXT("QuickCoverArena", "Cover Arena")).OnClicked_Lambda([this]() { const FString P = TEXT("生成一个射击掩体竞技场白盒, 带双出生点、掩体线和中心柱"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth()
-                    [ SNew(SButton).Text(LOCTEXT("QuickClear", "Clear Cindra")).OnClicked_Lambda([this]() { const FString P = TEXT("清除所有Cindra_开头的物体"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
+                    [ SNew(SButton).Text(LOCTEXT("QuickClearBlockout", "Clear Blockout")).OnClicked_Lambda([this]() { const FString P = TEXT("清除白盒"); PromptBox->SetText(FText::FromString(P)); RunPrompt(P); return FReply::Handled(); }) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
                 [
@@ -251,14 +251,14 @@ TSharedRef<SDockTab> FCindraEditorPanelModule::SpawnCindraTab(const FSpawnTabArg
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
                 [
                     SAssignNew(ApiKeyBox, SEditableTextBox)
-                    .HintText(LOCTEXT("ApiKeyHint", "Optional API key override. Quick scene buttons do not need a key."))
+                    .HintText(LOCTEXT("ApiKeyHint", "Optional API key override. Blockout buttons do not need a key."))
                     .IsPassword(true)
                 ]
                 + SVerticalBox::Slot().FillHeight(0.28f).Padding(0, 0, 0, 8)
                 [
                     SAssignNew(PromptBox, SMultiLineEditableTextBox)
-                    .Text(FText::FromString(TEXT("生成一个明显可见的大球, 名字以Cindra_开头, 放在[0,0,300]")))
-                    .HintText(LOCTEXT("PromptHint", "生成5个cube排成一排, 中间放个球当主角"))
+                    .Text(FText::FromString(TEXT("生成一个黑神话风格首领战白盒, 有玩家出生点、Boss出生点、躲避路线、阶段门、神龛和目标点")))
+                    .HintText(LOCTEXT("PromptHint", "Boss arena / gauntlet / arena / corridor / room blockout"))
                     .AutoWrapText(true)
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
@@ -267,7 +267,7 @@ TSharedRef<SDockTab> FCindraEditorPanelModule::SpawnCindraTab(const FSpawnTabArg
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                     [ SNew(SButton).Text(LOCTEXT("RunButton", "Run")).OnClicked_Lambda([this]() { RunPrompt(PromptBox.IsValid() ? PromptBox->GetText().ToString() : FString()); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
-                    [ SNew(SButton).Text(LOCTEXT("SceneButton", "Read Scene")).OnClicked_Lambda([this]() { const FString OldMode = ModeBox->GetText().ToString(); const FString OldBackend = BackendBox->GetText().ToString(); ModeBox->SetText(FText::FromString(TEXT("chat"))); BackendBox->SetText(FText::FromString(TEXT("ue"))); RunPrompt(TEXT("场景里现在有什么? 请列出来, 重点列出Cindra_开头的物体")); ModeBox->SetText(FText::FromString(OldMode)); BackendBox->SetText(FText::FromString(OldBackend)); return FReply::Handled(); }) ]
+                    [ SNew(SButton).Text(LOCTEXT("SceneButton", "Read Scene")).OnClicked_Lambda([this]() { const FString OldMode = ModeBox->GetText().ToString(); const FString OldBackend = BackendBox->GetText().ToString(); ModeBox->SetText(FText::FromString(TEXT("chat"))); BackendBox->SetText(FText::FromString(TEXT("ue"))); RunPrompt(TEXT("场景里现在有什么? 请列出来, 重点列出Cindra_Blockout_开头的物体")); ModeBox->SetText(FText::FromString(OldMode)); BackendBox->SetText(FText::FromString(OldBackend)); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().AutoWidth()
                     [ SNew(SButton).Text(LOCTEXT("ClearLogButton", "Clear Log")).OnClicked_Lambda([this]() { if (LogBox.IsValid()) { LogBox->SetText(FText::GetEmpty()); } return FReply::Handled(); }) ]
                 ]
@@ -407,7 +407,7 @@ FString FCindraEditorPanelModule::PreparePythonArgs(const FString& Prompt)
         *Runner, *Mode, *Backend, *Provider, *Model, *KeyEnv, *MaskKey(ApiKey)));
     if (ApiKey.IsEmpty())
     {
-        AppendLog(FString::Printf(TEXT("API key not set in %s. Quick scene commands still run; model fallback needs a key."), *KeyEnv));
+        AppendLog(FString::Printf(TEXT("API key not set in %s. Blockout buttons still run; model fallback needs a key."), *KeyEnv));
     }
 
     return FString::Printf(
