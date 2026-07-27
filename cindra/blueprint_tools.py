@@ -17,6 +17,27 @@ _NODE_TYPES = list(node_templates().keys())
 
 TOOLS: list[dict] = [
     {
+        "name": "create_blueprint",
+        "description": "新建一个 Blueprint 资产并设为当前操作目标 (真 UE 会在 "
+                       "Content 里生成真资产)。path 如 /Game/Blueprints/BP_Hello。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "parent_class": {"type": "string",
+                                 "enum": ["Actor", "Pawn", "Character"],
+                                 "description": "默认 Actor"},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "compile_blueprint",
+        "description": "编译当前蓝图并回报错误/警告 (含不可达的孤儿节点)。"
+                       "建完图必须编译, 否则改动不生效; 有警告要处理或向用户说明。",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "list_node_types",
         "description": "列出可用的蓝图节点类型及它们的引脚 (名字/方向/类别/类型)。"
                        "动手建图前先用它了解有哪些节点、各有哪些引脚, 才能正确连线。",
@@ -91,6 +112,14 @@ TOOLS: list[dict] = [
 
 def dispatch(transport: Any, name: str, args: dict[str, Any]) -> dict:
     """执行一个工具调用, 返回结果 dict (给 agent 当 tool_result)。"""
+    if name == "create_blueprint":
+        return transport.call("bp_create",
+                              path=args["path"],
+                              parent_class=args.get("parent_class", "Actor"))
+
+    if name == "compile_blueprint":
+        return transport.call("bp_compile")
+
     if name == "list_node_types":
         return {"ok": True, "action": "list_node_types",
                 "node_types": node_templates()}

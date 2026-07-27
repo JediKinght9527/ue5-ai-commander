@@ -70,41 +70,50 @@ UEdGraphPin / FKismetEditorUtilities) 是 C++ 编辑器模块。真后端需要:
 
 
 class UEBlueprintTransport:
-    """真 UE 后端 (占位/接法见 UE_BP_HELPER_NOTE)。
+    """真 UE 后端: RemoteExecClient + ue_helpers/bp.py 胶水 +
+    CindraBlueprintBridge C++ 插件 (UCindraBlueprintLib)。
 
-    复用 RemoteExecTransport 的连接方式, 但 bp_*() 在引擎侧由 C++ 编辑器插件
-    实现。本机没有该插件时, 调用会明确报错并指向接法说明 —— 不假装成功。
+    首次调用注入 bp 胶水源并跑 bp_probe() 探测插件 —— 没编译/没启用时
+    返回可执行的修复指引, 不假装成功。真图操作的实现见
+    ue_plugin/CindraEditorPanel/Source/CindraBlueprintBridge/。
     """
 
-    def __init__(self, host: str = "239.0.0.1", port: int = 6766) -> None:
-        self.host = host
-        self.port = port
-        self._conn = None
+    def __init__(self, host: str = "239.0.0.1", port: int = 6766,
+                 client=None) -> None:
+        from .transport import RemoteExecClient
+        self.client = client or RemoteExecClient(host, port)
+        self._injected = False
+        self._probed = False
 
-    def _ensure(self):
-        if self._conn is not None:
-            return
-        try:
-            import remote_execution as re  # UE 自带 / 兼容实现  # noqa: F401
-        except ImportError as e:  # noqa
-            raise RuntimeError(
-                "CindraBlueprint 真后端需要: (1) 装了 UE 且开启 Python Remote "
-                "Execution, (2) 一个操作 BlueprintGraph 的 C++ 编辑器插件。"
-                "见 blueprint_transport.UE_BP_HELPER_NOTE。这台机器无 UE, 请用 "
-                "--backend mock 在内存图上验证逻辑。"
-            ) from e
-        # 实际连接与 RemoteExecTransport 相同, 此处略 (留给 Windows 环境实现)。
-        raise RuntimeError(
-            "UEBlueprintTransport 需要配套 C++ 编辑器插件才能操作真 BlueprintGraph; "
-            "请在装了 UE 的 Windows 上按 UE_BP_HELPER_NOTE 实现后启用。"
-        )
+    def _ensure(self) -> dict | None:
+        """注入胶水 + 探测插件。返回错误 dict 或 None。"""
+        import json as _json
+
+        from .ue_helpers import HELPER_MODULES
+        if not self._injected:
+            self.client.exec(HELPER_MODULES["bp"], mode="ExecuteFile")
+            self._injected = True
+        if not self._probed:
+            raw = self.client.exec("print(bp_probe())")
+            probe = _json.loads(raw)
+            if not probe.get("ok"):
+                return probe
+            self._probed = True
+        return None
 
     def call(self, func: str, **kwargs: Any) -> dict:
+        import pprint
         try:
-            self._ensure()
+            err = self._ensure()
+            if err is not None:
+                return err
+            args = ", ".join(
+                f"{k}={pprint.pformat(v, width=120, compact=True)}"
+                for k, v in kwargs.items())
+            raw = self.client.exec(f"print({func}({args}))")
+            return json.loads(raw)
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        return {"ok": False, "error": "真后端未实现 (见 UE_BP_HELPER_NOTE)"}
 
     def describe_graph(self) -> str:
         res = self.call("bp_list")

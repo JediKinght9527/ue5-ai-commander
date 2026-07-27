@@ -27,6 +27,10 @@ class CindraAgent:
     SYSTEM_PROMPT: str = ""
     MODEL: str = DEFAULT_MODEL
     TOOL_EMOJI: str = "⚙️"   # 工具调用日志前缀, 子类可换 (docs/code 用 🔎)
+    # 单次 send 内某工具的调用上限 (视觉闭环要在代码层封顶, 不能只靠提示词)。
+    PER_SEND_TOOL_LIMITS: dict[str, int] = {}
+    # 对话里最多保留几张历史截图 (更早的替换成文字 stub, 控住上下文成本)
+    IMAGE_WINDOW: int = 3
 
     def __init__(self, target, tools_module,
                  client: Any | None = None,
@@ -50,7 +54,9 @@ class CindraAgent:
         model = selected_model(self.MODEL)
 
         final_text = ""
+        tool_counts: dict[str, int] = {}
         while True:
+            self._prune_old_images()
             resp = self.client.create(
                 model=model,
                 max_tokens=8000,
@@ -76,17 +82,44 @@ class CindraAgent:
                 if block.type != "tool_use":
                     continue
                 self._log(f"   {self.TOOL_EMOJI}  {block.name}({_fmt_args(block.input)})")
-                result = self.tools_module.dispatch(self.target, block.name, block.input)
+                limit = self.PER_SEND_TOOL_LIMITS.get(block.name)
+                tool_counts[block.name] = tool_counts.get(block.name, 0) + 1
+                if limit is not None and tool_counts[block.name] > limit:
+                    result = {"ok": False,
+                              "error": f"{block.name} 本轮已达上限 {limit} 次, "
+                                       "请基于已有信息收尾。"}
+                else:
+                    result = self.tools_module.dispatch(
+                        self.target, block.name, block.input)
                 self._log(f"      → {self._fmt_result(result)}")
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content": _json(result),
+                    "content": _tool_result_content(result),
                     "is_error": not result.get("ok", True),
                 })
             self.messages.append({"role": "user", "content": tool_results})
 
         return final_text
+
+    def _prune_old_images(self) -> None:
+        """只保留最近 IMAGE_WINDOW 张图, 更早的换成文字 stub。"""
+        slots = []  # (message, content_list, index)
+        for msg in self.messages:
+            content = msg.get("content")
+            if not isinstance(content, list):
+                continue
+            for tr in content:
+                if not (isinstance(tr, dict) and tr.get("type") == "tool_result"):
+                    continue
+                inner = tr.get("content")
+                if not isinstance(inner, list):
+                    continue
+                for i, blk in enumerate(inner):
+                    if isinstance(blk, dict) and blk.get("type") == "image":
+                        slots.append((inner, i))
+        for inner, i in slots[:max(0, len(slots) - self.IMAGE_WINDOW)]:
+            inner[i] = {"type": "text", "text": "(较早的截图已省略)"}
 
     def _fmt_result(self, r: dict) -> str:
         """把工具结果格式化成一行日志。通用默认: 错误标红, 否则简短 JSON。
@@ -98,6 +131,33 @@ class CindraAgent:
 
 def _json(d) -> str:
     return json.dumps(d, ensure_ascii=False)
+
+
+def _tool_result_content(result: dict):
+    """工具结果 -> tool_result content。
+
+    约定: dispatch 返回值带 "images": [png路径...] 时, 组装成
+    text + image blocks (视觉闭环的入口); 否则保持纯 JSON 字符串。
+    图片读盘失败/超限不炸整轮 —— 降级成文字说明, agent 自己决定重拍。
+    """
+    images = result.get("images")
+    if not images:
+        return _json(result)
+    from .imaging import b64_file
+
+    rest = {k: v for k, v in result.items() if k != "images"}
+    blocks: list[dict] = [{"type": "text", "text": _json(rest)}]
+    for path in images:
+        try:
+            blocks.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/png",
+                           "data": b64_file(path)},
+            })
+        except Exception as e:  # noqa: BLE001
+            blocks.append({"type": "text",
+                           "text": f"(截图读取失败 {path}: {e})"})
+    return blocks
 
 
 def _fmt_args(d: dict) -> str:

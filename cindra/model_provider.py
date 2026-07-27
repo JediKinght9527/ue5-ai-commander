@@ -400,9 +400,41 @@ def _to_openai_messages(system_prompt: str, messages: list[dict]) -> list[dict]:
             continue
         for block in content or []:
             if block.get("type") == "tool_result":
+                inner = block.get("content", "")
+                if isinstance(inner, str):
+                    out.append({
+                        "role": "tool",
+                        "tool_call_id": block["tool_use_id"],
+                        "content": inner,
+                    })
+                    continue
+                # v2: tool_result 可能是 [text, image...] 块列表 (视觉闭环)。
+                # OpenAI 的 tool 消息只能是文本 —— 文本部分照走 tool 消息;
+                # 图片: 视觉模型 (CINDRA_VISION=1) 走一条合成 user 消息带
+                # image_url; 非视觉模型诚实降级为文字说明, 不假装看过图。
+                texts = [b.get("text", "") for b in inner
+                         if b.get("type") == "text"]
+                images = [b for b in inner if b.get("type") == "image"]
                 out.append({
                     "role": "tool",
                     "tool_call_id": block["tool_use_id"],
-                    "content": block.get("content", ""),
+                    "content": "\n".join(texts) or "(见后续图片)",
                 })
+                if not images:
+                    continue
+                if os.environ.get("CINDRA_VISION") == "1":
+                    parts = [{"type": "text",
+                              "text": "(上一个工具返回的截图)"}]
+                    for img in images:
+                        src = img.get("source", {})
+                        parts.append({"type": "image_url", "image_url": {
+                            "url": "data:%s;base64,%s" % (
+                                src.get("media_type", "image/png"),
+                                src.get("data", ""))}})
+                    out.append({"role": "user", "content": parts})
+                else:
+                    out.append({"role": "user", "content":
+                                "(工具返回了 %d 张截图, 但当前模型不支持看图; "
+                                "设 CINDRA_VISION=1 且换视觉模型可启用视觉闭环)"
+                                % len(images)})
     return out

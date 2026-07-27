@@ -86,16 +86,52 @@ def run_chat(args) -> int:
     if config_status:
         return config_status
 
-    agent = CindraChatAgent(transport, verbose=not args.quiet)
+    asset_index = None
+    if getattr(args, "refresh_assets", False):
+        # 真后端: 让 UE 枚举 AssetRegistry 写 manifest, 再从盘上加载
+        res = transport.call("cnd_list_assets")
+        if res.get("ok"):
+            from .asset_index import load_asset_index
+            asset_index = load_asset_index(res["path"])
+            print(f"asset manifest: {res['count']} 条 <- {res['path']}")
+        else:
+            print(f"WARNING: 资产枚举失败: {res.get('error')}", file=sys.stderr)
+
+    agent = CindraChatAgent(transport, verbose=not args.quiet,
+                            asset_index=asset_index)
+
+    session_name = getattr(args, "session", None)
+    if session_name:
+        from .session import load_session, save_session
+        if load_session(session_name, agent, transport):
+            print(f"(session '{session_name}' 已恢复, "
+                  f"{len(agent.messages)} 条历史消息)")
 
     def show_scene():
         if hasattr(transport, "describe_scene"):
             print("\n" + transport.describe_scene())
 
+    def look():
+        from .scene_tools import dispatch
+        res = dispatch(agent.target, "look_at_scene", {})
+        print(f"📷 {res.get('path') if res.get('ok') else res.get('error')}")
+
+    def save_now():
+        if not session_name:
+            print("(未指定 --session, 无处可存)")
+            return
+        from .session import save_session
+        print(f"(已存到 {save_session(session_name, 'chat', agent, transport)})")
+
     banner = (f"CindraChat [{args.backend}] -- describe the scene you want.\n"
-              "Commands: /scene, /reset, /quit.\n")
-    return _repl(agent, banner, {"/scene": show_scene},
-                 once=args.once, after_send=show_scene)
+              "Commands: /scene, /look, /save, /reset, /quit.\n")
+    rc = _repl(agent, banner,
+               {"/scene": show_scene, "/look": look, "/save": save_now},
+               once=args.once, after_send=show_scene)
+    if session_name:
+        from .session import save_session
+        save_session(session_name, "chat", agent, transport)
+    return rc
 
 
 def run_docs(args) -> int:
@@ -174,6 +210,42 @@ def run_blueprint(args) -> int:
                  once=args.once, after_send=show_graph)
 
 
+def run_cine(args) -> int:
+    config_status = _check_model_config(args)
+    if config_status:
+        return config_status
+
+    from .cine_agent import CindraCineAgent
+    if args.backend == "ue":
+        from .transport import RemoteExecTransport
+        transport = RemoteExecTransport()
+    else:
+        from .cine_transport import MockCineTransport
+        transport = MockCineTransport()
+        # 有会话就把 chat 搭的 mock 场景搬进来 —— 故事板拍的就是你搭的景
+        session_name = getattr(args, "session", None)
+        if session_name:
+            from .session import load_session
+
+            class _Holder:
+                messages: list = []
+            load_session(session_name, _Holder(), transport)
+            if transport.scene.actors:
+                print(f"(从 session '{session_name}' 载入 "
+                      f"{len(transport.scene.actors)} 个 Actor 的场景)")
+
+    agent = CindraCineAgent(transport, verbose=not args.quiet)
+
+    def storyboard():
+        if hasattr(transport, "describe_scene"):
+            print("\n" + transport.describe_scene())
+
+    banner = (f"CindraCine [{args.backend}] -- describe the shot you want.\n"
+              "Commands: /storyboard, /reset, /quit.\n")
+    return _repl(agent, banner, {"/storyboard": storyboard},
+                 once=args.once, after_send=storyboard)
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(
         description="Cindra -- natural-language control for UE5",
@@ -183,10 +255,12 @@ def main(argv=None) -> int:
                 "also supports openai/codex/openrouter/siliconflow/moonshot/"
                 "dashscope/ark + corresponding API key."),
     )
-    p.add_argument("--mode", choices=["chat", "docs", "code", "blueprint"],
+    p.add_argument("--mode", choices=["chat", "docs", "code", "blueprint",
+                                      "cine"],
                    default="chat",
                    help="chat=scene editing, docs=UE docs RAG, code=UE C++, "
-                        "blueprint=Blueprint graph")
+                        "blueprint=Blueprint graph, cine=cinematics "
+                        "(Sequencer + Movie Render Queue)")
     p.add_argument("--backend", choices=["mock", "ue"], default="mock",
                    help="[chat/blueprint] mock=memory backend, ue=real UE")
     p.add_argument("--index", choices=["lexical", "embed"], default="lexical",
@@ -195,6 +269,12 @@ def main(argv=None) -> int:
                    help="[code] UE project root; defaults to bundled sample")
     p.add_argument("--once", metavar="MSG", help="run one instruction/question and exit")
     p.add_argument("--quiet", action="store_true", help="hide tool call details")
+    p.add_argument("--session", metavar="NAME",
+                   help="[chat] persist/restore conversation + scene under "
+                        "~/.cindra/sessions/NAME.json")
+    p.add_argument("--refresh-assets", action="store_true",
+                   help="[chat, ue backend] re-enumerate the project asset "
+                        "registry into a manifest before starting")
     p.add_argument("--once-file", metavar="FILE",
                    help="read one UTF-8 prompt/question from a file, then exit")
     args = p.parse_args(argv)
@@ -209,7 +289,8 @@ def main(argv=None) -> int:
             return 2
 
     runners = {"chat": run_chat, "docs": run_docs,
-               "code": run_code, "blueprint": run_blueprint}
+               "code": run_code, "blueprint": run_blueprint,
+               "cine": run_cine}
     return runners[args.mode](args)
 
 

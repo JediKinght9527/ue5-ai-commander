@@ -24,6 +24,13 @@ class MockScene:
     def __init__(self) -> None:
         self.actors: dict[str, dict[str, Any]] = {}
         self._counters: dict[str, int] = {}
+        # 视口相机状态 (视觉闭环用), 与真 UE 侧 cnd_set_camera 同义
+        self.camera: dict[str, Any] = {
+            "location": [-800.0, -800.0, 600.0],
+            "rotation": [-25.0, 45.0, 0.0],
+            "fov": 60.0,
+        }
+        self._shot_counter = 0
 
     # ---- cnd_*: 和 ue_helper.UE_HELPER_SOURCE 里同名同义 ----
 
@@ -97,6 +104,233 @@ class MockScene:
             self.actors = {}
         return json.dumps({"ok": True, "action": "clear",
                            "deleted": before - len(self.actors)})
+
+    # ---- 真资产/灯光/环境/PCG (与 ue_helpers/assets.py 同名同义) ----
+
+    def _manifest(self):
+        if not hasattr(self, "_asset_manifest"):
+            import os
+            path = os.path.join(os.path.dirname(__file__), "mock_assets",
+                                "manifest.json")
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            self._asset_manifest = {a["path"]: a for a in data["assets"]}
+            self._asset_manifest_path = path
+        return self._asset_manifest
+
+    def _uniq(self, base: str) -> str:
+        name, i = base, 1
+        while name in self.actors:
+            i += 1
+            name = f"{base}_{i}"
+        return name
+
+    def cnd_list_assets(self, roots=None, classes=None,
+                        manifest_path=None) -> str:
+        m = self._manifest()
+        return json.dumps({"ok": True, "action": "list_assets",
+                           "count": len(m),
+                           "path": self._asset_manifest_path})
+
+    def cnd_spawn_asset(self, asset_path, name=None, location=(0, 0, 0),
+                        rotation=(0, 0, 0), scale=(1, 1, 1),
+                        folder=None) -> str:
+        entry = self._manifest().get(asset_path)
+        if entry is None:
+            # 镜像真侧 load_asset 失败 —— agent 必须先 search_assets 拿真路径
+            return json.dumps({"ok": False,
+                               "error": f"asset not found: {asset_path}"})
+        base = name or f"Cindra_{entry['name']}"
+        label = self._uniq(base)
+        self.actors[label] = {
+            "name": label, "type": f"asset:{entry['name']}",
+            "asset": asset_path,
+            "location": [float(x) for x in location],
+            "rotation": [float(x) for x in rotation],
+            "scale": [float(x) for x in scale],
+            "folder": folder or "", "tags": list(entry.get("tags", [])),
+        }
+        return json.dumps({"ok": True, "action": "spawn_asset",
+                           "name": label, "asset": asset_path,
+                           "location": self.actors[label]["location"],
+                           "bounds_extent": [50.0 * float(scale[0]),
+                                             50.0 * float(scale[1]),
+                                             50.0 * float(scale[2])]})
+
+    def cnd_set_material(self, name, material_path, slot=0) -> str:
+        a = self.actors.get(name)
+        if a is None:
+            return json.dumps({"ok": False, "error": f"not found: {name}"})
+        if material_path not in self._manifest():
+            return json.dumps({"ok": False,
+                               "error": f"material not found: {material_path}"})
+        a.setdefault("materials", {})[str(int(slot))] = material_path
+        return json.dumps({"ok": True, "action": "set_material", "name": name,
+                           "material": material_path, "slot": int(slot)})
+
+    def cnd_spawn_light(self, light_type="point", name=None,
+                        location=(0, 0, 300), rotation=(0, 0, 0),
+                        intensity=5000.0, color=None, temperature=None,
+                        attenuation_radius=1000.0, cone_angle=44.0) -> str:
+        lt = (light_type or "point").lower()
+        if lt not in ("point", "spot", "rect", "directional"):
+            return json.dumps({"ok": False,
+                               "error": f"unknown light type: {light_type}"})
+        label = self._uniq(name or f"Cindra_{lt.capitalize()}Light")
+        self.actors[label] = {
+            "name": label, "type": f"light:{lt}",
+            "location": [float(x) for x in location],
+            "rotation": [float(x) for x in rotation],
+            "scale": [1.0, 1.0, 1.0],
+            "intensity": float(intensity),
+            "color": [float(c) for c in color] if color else None,
+            "temperature": float(temperature) if temperature else None,
+            "folder": "", "tags": [],
+        }
+        return json.dumps({"ok": True, "action": "spawn_light", "name": label,
+                           "type": lt,
+                           "location": self.actors[label]["location"],
+                           "intensity": float(intensity)})
+
+    def cnd_spawn_env(self, kind, params=None) -> str:
+        kinds = ("sky_atmosphere", "exp_height_fog", "post_process",
+                 "sky_light", "sun")
+        if kind not in kinds:
+            return json.dumps({"ok": False,
+                               "error": f"unknown env kind: {kind}"})
+        label = f"Cindra_Env_{kind}"
+        self.actors.pop(label, None)  # 单例: 重建全量生效
+        self.actors[label] = {
+            "name": label, "type": f"env:{kind}",
+            "location": [0.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0],
+            "scale": [1.0, 1.0, 1.0],
+            "params": dict(params or {}), "folder": "", "tags": [],
+        }
+        return json.dumps({"ok": True, "action": "spawn_env", "kind": kind,
+                           "name": label})
+
+    def cnd_pcg_spawn_volume(self, graph_path, name=None, origin=(0, 0, 0),
+                             size=(2000, 2000, 500)) -> str:
+        entry = self._manifest().get(graph_path)
+        if entry is None or entry.get("class") != "PCGGraph":
+            return json.dumps({"ok": False,
+                               "error": f"pcg graph not found: {graph_path}"})
+        label = self._uniq(name or "Cindra_PCGVolume")
+        self.actors[label] = {
+            "name": label, "type": "pcg:volume", "graph": graph_path,
+            "location": [float(x) for x in origin],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [float(size[0]) / 100.0, float(size[1]) / 100.0,
+                      float(size[2]) / 100.0],
+            "size": [float(x) for x in size], "folder": "", "tags": [],
+        }
+        return json.dumps({"ok": True, "action": "pcg_spawn_volume",
+                           "name": label, "graph": graph_path})
+
+    def cnd_pcg_generate(self, name) -> str:
+        vol = self.actors.get(name)
+        if vol is None or vol["type"] != "pcg:volume":
+            return json.dumps({"ok": False,
+                               "error": f"no PCG volume: {name}"})
+        import hashlib
+
+        def r01(salt):
+            h = hashlib.md5(f"{name}|{salt}".encode()).hexdigest()
+            return int(h[:8], 16) / 0xFFFFFFFF
+
+        size = vol["size"]
+        n = min(40, max(4, int(size[0] * size[1] / (500.0 * 500.0))))
+        ox, oy, oz = vol["location"]
+        for i in range(n):
+            label = f"{name}_gen_{i:03d}"
+            self.actors[label] = {
+                "name": label, "type": "pcg:gen",
+                "location": [ox + (r01(f"x{i}") - 0.5) * size[0],
+                             oy + (r01(f"y{i}") - 0.5) * size[1], oz],
+                "rotation": [0.0, r01(f"yaw{i}") * 360.0, 0.0],
+                "scale": [0.8 + r01(f"s{i}") * 0.6] * 3,
+                "folder": "", "tags": [],
+            }
+        return json.dumps({"ok": True, "action": "pcg_generate", "name": name,
+                           "generated": n})
+
+    def cnd_env_info(self) -> str:
+        return json.dumps({"ok": True, "action": "env_info",
+                           "engine_version": "mock",
+                           "pcg_available": True, "megalights": "mock"})
+
+    # ---- 视觉闭环: 相机 + 截图 (与 ue_helpers/vision.py 同名同义) ----
+
+    def cnd_set_camera(self, location=None, rotation=None, look_at=None,
+                       orbit=None, fov=None) -> str:
+        from .camera_math import look_at_rotation, orbit_pose
+
+        cam = self.camera
+        if orbit:
+            eye, rot = orbit_pose(
+                tuple(orbit.get("center", (0, 0, 0))),
+                float(orbit.get("distance", 800)),
+                float(orbit.get("yaw", 0)), float(orbit.get("pitch", 20)))
+            cam["location"] = list(eye)
+            cam["rotation"] = list(rot)
+        else:
+            if location is not None:
+                cam["location"] = [float(x) for x in location]
+            if look_at is not None:
+                cam["rotation"] = list(look_at_rotation(
+                    tuple(cam["location"]), tuple(look_at)))
+            elif rotation is not None:
+                cam["rotation"] = [float(x) for x in rotation]
+        if fov is not None:
+            cam["fov"] = float(fov)
+        return json.dumps({"ok": True, "action": "set_camera",
+                           "location": cam["location"],
+                           "rotation": cam["rotation"]})
+
+    def cnd_frame_actors(self, prefix=None, distance_factor=2.2,
+                         pitch=25.0) -> str:
+        from .camera_math import orbit_pose
+
+        matched = [a for a in self.actors.values()
+                   if not prefix or a["name"].startswith(prefix)]
+        if not matched:
+            return json.dumps({"ok": False, "error": "no actors to frame"})
+        mins = [min(a["location"][i] - 50 * a["scale"][i] for a in matched)
+                for i in range(3)]
+        maxs = [max(a["location"][i] + 50 * a["scale"][i] for a in matched)
+                for i in range(3)]
+        center = tuple((mins[i] + maxs[i]) / 2.0 for i in range(3))
+        radius = max(max(maxs[i] - mins[i] for i in range(3)) / 2.0, 100.0)
+        eye, rot = orbit_pose(center, radius * float(distance_factor),
+                              315.0, float(pitch))
+        self.camera["location"] = list(eye)
+        self.camera["rotation"] = list(rot)
+        return json.dumps({"ok": True, "action": "frame_actors",
+                           "count": len(matched), "center": list(center),
+                           "camera": list(eye)})
+
+    def cnd_screenshot(self, path=None, view="camera",
+                       res_x=640, res_y=360) -> str:
+        """mock 截图: 用 mock_viewport 渲 PNG。同步完成, 无 pending。"""
+        from pathlib import Path
+
+        from .mock_viewport import render_topdown_png, render_view_png
+
+        if path is None:
+            self._shot_counter += 1
+            path = str(Path.home() / ".cindra" / "shots"
+                       / f"mock_{self._shot_counter:03d}.png")
+        if view == "topdown":
+            render_topdown_png(self.actors, path,
+                               width=int(res_x), height=int(res_x))
+        else:
+            render_view_png(self.actors, path,
+                            tuple(self.camera["location"]),
+                            tuple(self.camera["rotation"]),
+                            fov=self.camera["fov"],
+                            width=int(res_x), height=int(res_y))
+        return json.dumps({"ok": True, "action": "screenshot",
+                           "path": path, "view": view, "images": [path]})
 
     # ---- 把场景画成 ASCII 俯视图 (X 向右, Y 向下), 让你能"看见" ----
 
@@ -174,7 +408,38 @@ def _selfcheck() -> int:
     assert same, "arrange_scene 不确定 —— 同输入产出不一致"
     print("✅ 确定性: 同输入两次产出一致")
 
-    print("\n场景自检 4/4 通过。地震后俯视图:")
+    # 5) 视觉闭环: 截图确定性 + 相机姿态相关
+    import tempfile
+    from pathlib import Path as _P
+    with tempfile.TemporaryDirectory() as _td:
+        p1, p2, p3 = (_P(_td) / f"s{i}.png" for i in range(3))
+        scene.cnd_set_camera(orbit={"center": [200, 200, 0],
+                                    "distance": 1500, "yaw": 45, "pitch": 30})
+        r = _json.loads(scene.cnd_screenshot(path=str(p1)))
+        assert r["ok"] and r["images"] == [str(p1)] and p1.is_file()
+        scene.cnd_screenshot(path=str(p2))
+        assert p1.read_bytes() == p2.read_bytes(), "同姿态截图不一致"
+        scene.cnd_set_camera(orbit={"center": [200, 200, 0],
+                                    "distance": 1500, "yaw": 225, "pitch": 30})
+        scene.cnd_screenshot(path=str(p3))
+        assert p3.read_bytes() != p1.read_bytes(), "转了相机截图没变"
+    print("✅ 视觉闭环: 截图确定性 + 姿态相关")
+
+    # 6) 真资产 + 灯组: spawn_asset 校验路径 / light_rig 端到端
+    bad = _json.loads(scene.cnd_spawn_asset("/Game/Nope.Nope"))
+    assert not bad["ok"], "假路径应报错"
+    good = _json.loads(scene.cnd_spawn_asset(
+        "/Game/Props/SM_Crate_A.SM_Crate_A", location=[500, 500, 0]))
+    assert good["ok"] and good["name"].startswith("Cindra_SM_Crate_A")
+    res = scene_tools.dispatch(_T(), "light_rig", {"style": "horror"})
+    assert res.get("ok"), f"light_rig 失败: {res}"
+    lights = [a for a in scene.actors.values()
+              if a["type"].startswith("light:")]
+    envs = [a for a in scene.actors.values() if a["type"].startswith("env:")]
+    assert lights and envs, "horror rig 应产出灯和环境"
+    print(f"✅ 真资产 + light_rig(horror): {len(lights)} 灯, {len(envs)} 环境")
+
+    print("\n场景自检 6/6 通过。地震后俯视图:")
     print(scene.render_topdown())
     return 0
 

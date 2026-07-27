@@ -5,6 +5,10 @@
   RemoteExecTransport 通过 UE Python Remote Execution 把代码发到真引擎执行
 
 两者都暴露 .call(func, **kwargs) -> dict, agent 不关心底下是真是假。
+
+v2: 连接层抽成 RemoteExecClient (蓝图 transport 复用同一条连接逻辑);
+注入源按命名空间懒加载 (见 ue_helpers 注册表) —— 首次调到某模块的函数
+才注入该模块, 单 blob 变多个小包, 易诊断也不怕撞消息体积上限。
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ import pprint
 from typing import Any, Protocol
 
 from .mock_ue import MockScene
+from .ue_helpers import HELPER_MODULES, module_for
 
 
 def _py_literal(value: Any) -> str:
@@ -43,21 +48,17 @@ class MockTransport:
         return self.scene.render_topdown()
 
 
-class RemoteExecTransport:
-    """真 UE 后端: 通过 Python Remote Execution 发送代码。
+class RemoteExecClient:
+    """UE Python Remote Execution 连接 (供场景/蓝图等多个 transport 复用)。
 
-    UE 侧需开启 Python 插件的 Remote Execution (见 README)。首次调用会把
-    ue_helper 的 cnd_*() 定义注入引擎, 之后每次只发一行函数调用。
-
-    依赖 UE 自带的 `remote_execution` 模块 (引擎里有, 也可单独 pip 安装兼容实现)。
-    这里做成惰性导入, 没装 UE 的机器 import cindra 其它部分不受影响。
+    依赖 UE 自带的 `remote_execution` 模块 (引擎里有, 也可单独 pip 安装
+    兼容实现)。惰性导入, 没装 UE 的机器 import cindra 其它部分不受影响。
     """
 
     def __init__(self, host: str = "239.0.0.1", port: int = 6766) -> None:
         self.host = host
         self.port = port
         self._conn = None
-        self._bootstrapped = False
 
     def _ensure(self):
         if self._conn is not None:
@@ -84,7 +85,7 @@ class RemoteExecTransport:
         conn.open_command_connection(conn.remote_nodes[0]["node_id"])
         self._conn = conn
 
-    def _exec(self, code: str, mode: str = "ExecuteStatement") -> str:
+    def exec(self, code: str, mode: str = "ExecuteStatement") -> str:
         self._ensure()
         res = self._conn.run_command(
             code, unattended=True,
@@ -99,18 +100,36 @@ class RemoteExecTransport:
                 return txt
         return "{}"
 
+
+class RemoteExecTransport:
+    """真 UE 后端: 通过 Python Remote Execution 发送代码。
+
+    UE 侧需开启 Python 插件的 Remote Execution (见 README)。首次调用某个
+    命名空间 (scene/vision/assets/...) 的函数时注入该命名空间的 cnd_*()
+    定义, 之后每次只发一行函数调用。
+    """
+
+    def __init__(self, host: str = "239.0.0.1", port: int = 6766,
+                 client: RemoteExecClient | None = None) -> None:
+        self.client = client or RemoteExecClient(host, port)
+        self._injected: set[str] = set()
+
+    def _ensure_module(self, func: str) -> None:
+        module = module_for(func)
+        if module in self._injected:
+            return
+        # 多行函数定义必须用 ExecuteFile 整段执行; ExecuteStatement 只吃
+        # 单条语句, 注入 helper 段会失败 (Windows 首次跑常见坑)。
+        self.client.exec(HELPER_MODULES[module], mode="ExecuteFile")
+        self._injected.add(module)
+
     def call(self, func: str, **kwargs: Any) -> dict:
-        from .ue_helper import UE_HELPER_SOURCE
         try:
-            if not self._bootstrapped:
-                # 多行函数定义必须用 ExecuteFile 整段执行; ExecuteStatement 只吃
-                # 单条语句, 注入这一大段 helper 会失败 (Windows 首次跑常见坑)。
-                self._exec(UE_HELPER_SOURCE, mode="ExecuteFile")
-                self._bootstrapped = True
+            self._ensure_module(func)
             args = ", ".join(f"{k}={_py_literal(v)}" for k, v in kwargs.items())
             # print 出来, 远程执行才能把返回值带回 output
             line = f"print({func}({args}))"
-            raw = self._exec(line)  # 单行调用用默认 ExecuteStatement
+            raw = self.client.exec(line)  # 单行调用用默认 ExecuteStatement
             return json.loads(raw)
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}

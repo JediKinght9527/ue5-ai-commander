@@ -72,8 +72,50 @@ class BlueprintGraph:
         self.links: list[dict] = []
         self.variables: dict[str, dict] = {}
         self._counter = 0
+        self.asset_path: str | None = None
+        self.parent_class: str = "Actor"
 
     # ---- bp_*: 和真 UE 侧 (ue 后端) 同名同义 ----
+
+    def bp_create(self, path, parent_class="Actor") -> str:
+        """mock 版建蓝图资产: 只记路径/父类 (真侧 CndBpCreate 建真资产)。"""
+        if self.asset_path == path:
+            return json.dumps({"ok": False, "error": f"blueprint exists: {path}"})
+        self.asset_path = path
+        self.parent_class = parent_class
+        self.nodes, self.links, self.variables = {}, [], {}
+        self._counter = 0
+        return json.dumps({"ok": True, "action": "create", "path": path,
+                           "parent": parent_class})
+
+    def bp_open(self, path) -> str:
+        self.asset_path = path
+        return json.dumps({"ok": True, "action": "open", "path": path,
+                           "nodes": len(self.nodes)})
+
+    def bp_compile(self) -> str:
+        """mock 编译: 真侧是 FKismetEditorUtilities::CompileBlueprint。
+        这里做廉价等价检查: 每个带 exec 输入的节点必须从某个事件可达
+        (孤儿执行节点 = 真编译的 warning/死代码)。"""
+        reachable: set[str] = set()
+        frontier = [nid for nid, n in self.nodes.items()
+                    if n["type"].startswith("Event_")]
+        reachable.update(frontier)
+        while frontier:
+            cur = frontier.pop()
+            for ln in self.links:
+                if ln["from_node"] == cur and ln["to_node"] not in reachable:
+                    reachable.add(ln["to_node"])
+                    frontier.append(ln["to_node"])
+        orphans = []
+        for nid, n in self.nodes.items():
+            has_exec_in = any(p["kind"] == "exec" and p["direction"] == "input"
+                              for p in n["pins"])
+            if has_exec_in and nid not in reachable:
+                orphans.append(nid)
+        warnings = [f"节点 {nid} 不可达 (没接到任何事件流)" for nid in orphans]
+        return json.dumps({"ok": True, "action": "compile", "errors": 0,
+                           "warnings": len(warnings), "messages": warnings})
 
     def bp_add_node(self, node_type, name=None) -> str:
         if node_type not in _NODE_TEMPLATES:
@@ -200,3 +242,67 @@ def _is_exec_link(graph: BlueprintGraph, ln: dict) -> bool:
         if p["name"] == ln["from_pin"]:
             return p["kind"] == "exec"
     return False
+
+
+def _selfcheck() -> int:
+    """离线自检: 建一张 BeginPlay -> Branch -> PrintString 的图,
+    验证连线校验规则 + mock 编译的孤儿检测。跑: python3 -m cindra.blueprint_model
+    """
+    g = BlueprintGraph()
+    ok = 0
+
+    # 1. 建图: BeginPlay -> Branch(True) -> PrintString, Greater 喂 Condition
+    assert json.loads(g.bp_create("/Game/BP_Test", "Actor"))["ok"]
+    for t in ("Event_BeginPlay", "Branch", "PrintString", "Greater_FloatFloat"):
+        assert json.loads(g.bp_add_node(t))["ok"], t
+    assert json.loads(g.bp_connect("Event_BeginPlay_1", "then",
+                                   "Branch_2", "exec"))["ok"]
+    assert json.loads(g.bp_connect("Greater_FloatFloat_4", "ReturnValue",
+                                   "Branch_2", "Condition"))["ok"]
+    assert json.loads(g.bp_connect("Branch_2", "True",
+                                   "PrintString_3", "exec"))["ok"]
+    ok += 1
+    print("✅ 建图 4 节点 3 连线")
+
+    # 2. 非法连线全部被拒: 类型不匹配 / 双入线 / exec 双出 / input->input
+    g.bp_add_node("Add_FloatFloat")  # Add_FloatFloat_5
+    r = json.loads(g.bp_connect("Add_FloatFloat_5", "ReturnValue",
+                                "Branch_2", "Condition"))
+    assert not r["ok"] and "类型" in r["error"], "float->bool 应被拒"
+    r = json.loads(g.bp_connect("Event_BeginPlay_1", "then",
+                                "PrintString_3", "exec"))
+    assert not r["ok"], "exec 双出应被拒 (BeginPlay.then 已连)"
+    r = json.loads(g.bp_connect("PrintString_3", "InString",
+                                "Branch_2", "Condition"))
+    assert not r["ok"], "input->input 应被拒"
+    ok += 1
+    print("✅ 非法连线三连拒 (类型/双出/方向)")
+
+    # 3. mock 编译: 当前图应无孤儿
+    r = json.loads(g.bp_compile())
+    assert r["ok"] and r["warnings"] == 0, r
+    ok += 1
+    print("✅ 编译: 全部可达, 0 警告")
+
+    # 4. 加一个不接线的 Delay -> 编译报孤儿
+    g.bp_add_node("Delay")
+    r = json.loads(g.bp_compile())
+    assert r["warnings"] == 1 and "Delay" in r["messages"][0], r
+    ok += 1
+    print("✅ 编译: 孤儿 Delay 被点名")
+
+    # 5. 删节点连带清线 + bp_list round-trip
+    r = json.loads(g.bp_delete_node("Branch_2"))
+    assert r["ok"] and r["removed_links"] == 3
+    listed = json.loads(g.bp_list())
+    assert len(listed["nodes"]) == 5 and len(listed["links"]) == 0
+    ok += 1
+    print("✅ 删节点连带清线 + list round-trip")
+
+    print(f"\n蓝图模型自检 {ok}/5 通过。当前图:")
+    print(g.render())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_selfcheck())

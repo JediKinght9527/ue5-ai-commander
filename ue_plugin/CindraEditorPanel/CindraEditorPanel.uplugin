@@ -13,6 +13,11 @@
       "Name": "CindraEditorPanel",
       "Type": "Editor",
       "LoadingPhase": "Default"
+    },
+    {
+      "Name": "CindraBlueprintBridge",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
     }
   ]
 }
