@@ -37,7 +37,8 @@ class MockScene:
     # ---- cnd_*: 和 ue_helper.UE_HELPER_SOURCE 里同名同义 ----
 
     def cnd_spawn(self, actor_type="cube", name=None, location=(0, 0, 0),
-                    rotation=(0, 0, 0), scale=(1, 1, 1)) -> str:
+                    rotation=(0, 0, 0), scale=(1, 1, 1), folder=None,
+                    tags=None) -> str:
         self._save()
         actor_type = (actor_type or "cube").lower()
         if not name:
