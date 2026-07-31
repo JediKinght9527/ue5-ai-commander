@@ -9,7 +9,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/JediKinght9527/cindra.git
+git clone https://github.com/JediKinght9527/ue5-ai-commander.git
 cd cindra
 pip install -r requirements.txt
 ```
