@@ -1,4 +1,31 @@
-"""cli -- Cindra command line entry point."""
+"""cli —— Cindra-clone 命令行入口。
+
+CindraChat (改场景):
+  python -m cindra.cli                  # Mac mock 后端 (默认, 无需 UE)
+  python -m cindra.cli --backend ue     # 接真 UE (需开 Remote Execution)
+  python -m cindra.cli --once "生成10个cube排成网格"   # 单次执行非交互
+
+CindraDocs (UE 问答 RAG):
+  python -m cindra.cli --mode docs                 # lexical 检索 (默认, 离线)
+  python -m cindra.cli --mode docs --index embed   # 向量检索 (需 embedding 依赖)
+  python -m cindra.cli --mode docs --once "Actor 和 Pawn 区别"
+
+CindraCode (生成符合工程规范的 UE C++, 配项目索引器):
+  python -m cindra.cli --mode code                 # 索引自带示例工程
+  python -m cindra.cli --mode code --project /path/to/UEProject
+  python -m cindra.cli --mode code --once "加一个冲刺技能到角色上"
+
+CindraBlueprint (自然语言搭蓝图事件图):
+  python -m cindra.cli --mode blueprint                 # mock 内存图 (默认, 无需 UE)
+  python -m cindra.cli --mode blueprint --backend ue    # 真 UE (需 C++ 插件, 见说明)
+  python -m cindra.cli --mode blueprint --once "BeginPlay 时打印 hello"
+
+CindraPCG (自然语言操控 UE5.7 PCG 程序化生成, 🆕):
+  python -m cindra.cli --mode pcg                       # mock 内存图 (默认)
+  python -m cindra.cli --mode pcg --once "在地表上只在平坦区域随机生成橡树"
+
+需要环境变量 ANTHROPIC_API_KEY (跑 agent 时)。
+"""
 from __future__ import annotations
 
 import argparse
@@ -210,53 +237,54 @@ def run_blueprint(args) -> int:
                  once=args.once, after_send=show_graph)
 
 
-def run_cine(args) -> int:
-    config_status = _check_model_config(args)
-    if config_status:
-        return config_status
+def run_pcg(args) -> int:
+    from .pcg_agent import CindraPCGAgent
+    from .pcg_model import PCGGraph
+    from .transport import MockTransport
+    import json as _json
 
-    from .cine_agent import CindraCineAgent
-    if args.backend == "ue":
-        from .transport import RemoteExecTransport
-        transport = RemoteExecTransport()
-    else:
-        from .cine_transport import MockCineTransport
-        transport = MockCineTransport()
-        # 有会话就把 chat 搭的 mock 场景搬进来 —— 故事板拍的就是你搭的景
-        session_name = getattr(args, "session", None)
-        if session_name:
-            from .session import load_session
+    agent = CindraPCGAgent(verbose=not args.quiet)
 
-            class _Holder:
-                messages: list = []
-            load_session(session_name, _Holder(), transport)
-            if transport.scene.actors:
-                print(f"(从 session '{session_name}' 载入 "
-                      f"{len(transport.scene.actors)} 个 Actor 的场景)")
+    # 如果给了 --context-scene, 从 mock scene 加载 actors 作 get_actor_data 输入
+    if args.context_scene:
+        scene = MockTransport().scene
+        # 预建场景 actors (用 CLI spawn 命令)
+        if args.context_scene != "empty":
+            try:
+                ops = _json.loads(args.context_scene)
+                for op in ops:
+                    scene.cnd_spawn(**op)
+            except Exception:
+                pass
+        ctx = {"scene_actors": [
+            {"name": a["name"], "location": a["location"],
+             "rotation": a.get("rotation", [0, 0, 0]),
+             "scale": a.get("scale", [1, 1, 1])}
+            for a in scene.actors.values()
+        ]}
+        agent.pcg_graph._context = ctx
 
-    agent = CindraCineAgent(transport, verbose=not args.quiet)
+    def show_result():
+        print("\n" + agent.pcg_graph.render())
+        print(agent.pcg_graph.render_stats())
 
-    def storyboard():
-        if hasattr(transport, "describe_scene"):
-            print("\n" + transport.describe_scene())
+    banner = ("CindraPCG —— 用自然语言描述程序化生成规则, "
+              "我帮你搭 UE5.7 PCG 图并执行。\n"
+              "命令: /graph 看当前图, /result 看俯视图+统计, "
+              "/reset 清空对话和图, /quit 退出。\n")
 
-    banner = (f"CindraCine [{args.backend}] -- describe the shot you want.\n"
-              "Commands: /storyboard, /reset, /quit.\n")
-    return _repl(agent, banner, {"/storyboard": storyboard},
-                 once=args.once, after_send=storyboard)
+    def reset():
+        agent.messages.clear()
+        agent.pcg_graph.clear()
+
+    return _repl(agent, banner, {"/graph": lambda: print("\n" + agent.pcg_graph.list_graph()),
+                                 "/result": show_result, "/reset": reset},
+                 once=args.once, after_send=show_result)
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(
-        description="Cindra -- natural-language control for UE5",
-        epilog=("Model env vars: ANTHROPIC_API_KEY by default; "
-                "DeepSeek: CINDRA_MODEL_PROVIDER=deepseek + DEEPSEEK_API_KEY; "
-                "GLM/Z.AI: CINDRA_MODEL_PROVIDER=glm + ZAI_API_KEY/GLM_API_KEY; "
-                "also supports openai/codex/openrouter/siliconflow/moonshot/"
-                "dashscope/ark + corresponding API key."),
-    )
-    p.add_argument("--mode", choices=["chat", "docs", "code", "blueprint",
-                                      "cine"],
+    p = argparse.ArgumentParser(description="Cindra-clone —— 自然语言操控 UE5")
+    p.add_argument("--mode", choices=["chat", "docs", "code", "blueprint", "pcg"],
                    default="chat",
                    help="chat=scene editing, docs=UE docs RAG, code=UE C++, "
                         "blueprint=Blueprint graph, cine=cinematics "
@@ -266,17 +294,11 @@ def main(argv=None) -> int:
     p.add_argument("--index", choices=["lexical", "embed"], default="lexical",
                    help="[docs] lexical=offline keyword search, embed=vector search")
     p.add_argument("--project", metavar="DIR",
-                   help="[code] UE project root; defaults to bundled sample")
-    p.add_argument("--once", metavar="MSG", help="run one instruction/question and exit")
-    p.add_argument("--quiet", action="store_true", help="hide tool call details")
-    p.add_argument("--session", metavar="NAME",
-                   help="[chat] persist/restore conversation + scene under "
-                        "~/.cindra/sessions/NAME.json")
-    p.add_argument("--refresh-assets", action="store_true",
-                   help="[chat, ue backend] re-enumerate the project asset "
-                        "registry into a manifest before starting")
-    p.add_argument("--once-file", metavar="FILE",
-                   help="read one UTF-8 prompt/question from a file, then exit")
+                   help="[code] UE 工程根目录, 不给则用自带示例工程")
+    p.add_argument("--once", metavar="MSG", help="执行单条指令/问题后退出")
+    p.add_argument("--quiet", action="store_true", help="不打印工具调用细节")
+    p.add_argument("--context-scene", metavar="JSON",
+                   help="[pcg] pre-load mock scene actors as PCG input (JSON list)")
     args = p.parse_args(argv)
 
     if args.once and args.once_file:
@@ -290,7 +312,7 @@ def main(argv=None) -> int:
 
     runners = {"chat": run_chat, "docs": run_docs,
                "code": run_code, "blueprint": run_blueprint,
-               "cine": run_cine}
+               "pcg": run_pcg}
     return runners[args.mode](args)
 
 

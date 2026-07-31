@@ -82,44 +82,53 @@ class CindraAgent:
                 if block.type != "tool_use":
                     continue
                 self._log(f"   {self.TOOL_EMOJI}  {block.name}({_fmt_args(block.input)})")
-                limit = self.PER_SEND_TOOL_LIMITS.get(block.name)
-                tool_counts[block.name] = tool_counts.get(block.name, 0) + 1
-                if limit is not None and tool_counts[block.name] > limit:
-                    result = {"ok": False,
-                              "error": f"{block.name} 本轮已达上限 {limit} 次, "
-                                       "请基于已有信息收尾。"}
-                else:
-                    result = self.tools_module.dispatch(
-                        self.target, block.name, block.input)
+                # pre/post 钩子: 子类用它做验证闭环 (改动前后拍快照对账)。
+                ctx = self._pre_tool(block.name, block.input)
+                result = self.tools_module.dispatch(self.target, block.name, block.input)
+                result = self._post_tool(block.name, block.input, result, ctx)
                 self._log(f"      → {self._fmt_result(result)}")
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content": _tool_result_content(result),
+                    "content": self._tool_result_content(result),
                     "is_error": not result.get("ok", True),
                 })
             self.messages.append({"role": "user", "content": tool_results})
 
         return final_text
 
-    def _prune_old_images(self) -> None:
-        """只保留最近 IMAGE_WINDOW 张图, 更早的换成文字 stub。"""
-        slots = []  # (message, content_list, index)
-        for msg in self.messages:
-            content = msg.get("content")
-            if not isinstance(content, list):
-                continue
-            for tr in content:
-                if not (isinstance(tr, dict) and tr.get("type") == "tool_result"):
-                    continue
-                inner = tr.get("content")
-                if not isinstance(inner, list):
-                    continue
-                for i, blk in enumerate(inner):
-                    if isinstance(blk, dict) and blk.get("type") == "image":
-                        slots.append((inner, i))
-        for inner, i in slots[:max(0, len(slots) - self.IMAGE_WINDOW)]:
-            inner[i] = {"type": "text", "text": "(较早的截图已省略)"}
+    # ---- 验证闭环钩子: 基类不做事, CindraChatAgent 覆盖 (见 agent.py) ----
+
+    def _pre_tool(self, name: str, args: dict):
+        """工具执行前调用, 返回值原样传给 _post_tool (如操作前的场景快照)。"""
+        return None
+
+    def _post_tool(self, name: str, args: dict, result: dict, ctx) -> dict:
+        """工具执行后调用, 可改写 result (如验证失败时改成 error 让 agent 修正)。"""
+        return result
+
+    def _tool_result_content(self, result: dict):
+        """把工具结果转成 tool_result 的 content。带 `_image_path` 的结果
+        (真 UE 截图) 转成 image block 回喂 —— agent 本身就是 VLM, 亲眼看视口
+        判断效果, 不需要独立的视觉验证模型。"""
+        img = result.get("_image_path")
+        if not img:
+            return _json(result)
+        import base64
+        try:
+            with open(img, "rb") as f:
+                data = base64.standard_b64encode(f.read()).decode()
+        except OSError as e:
+            return _json({**{k: v for k, v in result.items()
+                             if k != "_image_path"},
+                          "ok": False, "error": f"读截图失败: {e}"})
+        rest = {k: v for k, v in result.items() if k != "_image_path"}
+        return [
+            {"type": "image",
+             "source": {"type": "base64", "media_type": "image/png",
+                        "data": data}},
+            {"type": "text", "text": _json(rest)},
+        ]
 
     def _fmt_result(self, r: dict) -> str:
         """把工具结果格式化成一行日志。通用默认: 错误标红, 否则简短 JSON。

@@ -47,6 +47,12 @@ class MockTransport:
     def describe_scene(self) -> str:
         return self.scene.render_topdown()
 
+    def viewport(self) -> dict:
+        """视觉通道 (mock 版): ASCII 俯视图就是"截图"的离线替身。
+        让 Mac 上就能全链路验证"agent 亲眼看场景再自我修正"的闭环。"""
+        return {"ok": True, "action": "viewport",
+                "view": self.scene.render_topdown()}
+
 
 class RemoteExecClient:
     """UE Python Remote Execution 连接 (供场景/蓝图等多个 transport 复用)。
@@ -139,3 +145,34 @@ class RemoteExecTransport:
         actors = res.get("actors", [])
         return f"场景里 {len(actors)} 个 Actor: " + ", ".join(
             a["name"] for a in actors) if actors else "(空场景)"
+
+    def viewport(self, width: int = 1280, height: int = 720) -> dict:
+        """视觉通道 (真 UE 版): 请求视口截图 → 轮询文件落盘 → 返回图片路径。
+
+        cnd_screenshot 是异步的 (引擎在随后数帧末尾写 PNG), 而且截图请求在
+        remote exec 里没法阻塞等待 (会卡 GameThread)。所以引擎侧只发起请求,
+        这里在 CLI 侧轮询"文件出现 + 大小连续两次一致"才算写完。
+        CLI 和 UE 跑在同一台 Windows 上, 所以能直接读到这个文件。
+        """
+        import os
+        import tempfile
+        import time
+        import uuid
+        path = os.path.join(tempfile.gettempdir(),
+                            f"cindra_shot_{uuid.uuid4().hex[:8]}.png")
+        res = self.call("cnd_screenshot", path=path, width=width, height=height)
+        if not res.get("ok"):
+            return res
+        deadline = time.time() + 10.0
+        last_size = -1
+        while time.time() < deadline:
+            if os.path.exists(path):
+                size = os.path.getsize(path)
+                if size > 0 and size == last_size:  # 两次采样大小一致 = 写完
+                    return {"ok": True, "action": "viewport",
+                            "_image_path": path, "size_bytes": size}
+                last_size = size
+            time.sleep(0.4)
+        return {"ok": False, "error":
+                "截图超时: 引擎 10s 内没写出文件。已知坑: 视口被藏起来时"
+                "不出图 —— 确认编辑器视口可见, 再重试 inspect_viewport。"}

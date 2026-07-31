@@ -24,19 +24,21 @@ class MockScene:
     def __init__(self) -> None:
         self.actors: dict[str, dict[str, Any]] = {}
         self._counters: dict[str, int] = {}
-        # 视口相机状态 (视觉闭环用), 与真 UE 侧 cnd_set_camera 同义
-        self.camera: dict[str, Any] = {
-            "location": [-800.0, -800.0, 600.0],
-            "rotation": [-25.0, 45.0, 0.0],
-            "fov": 60.0,
-        }
-        self._shot_counter = 0
+        # 撤销栈: 每次改动前压入整个场景的深拷贝, 对应真 UE 的 transaction 撤销。
+        # 上限 100 条防止长会话吃内存。
+        self._history: list[dict[str, dict[str, Any]]] = []
+
+    def _save(self) -> None:
+        """改动前存档 (相当于开一个 transaction)。"""
+        self._history.append(json.loads(json.dumps(self.actors)))
+        if len(self._history) > 100:
+            self._history.pop(0)
 
     # ---- cnd_*: 和 ue_helper.UE_HELPER_SOURCE 里同名同义 ----
 
     def cnd_spawn(self, actor_type="cube", name=None, location=(0, 0, 0),
-                    rotation=(0, 0, 0), scale=(1, 1, 1), folder=None,
-                    tags=None) -> str:
+                    rotation=(0, 0, 0), scale=(1, 1, 1)) -> str:
+        self._save()
         actor_type = (actor_type or "cube").lower()
         if not name:
             self._counters[actor_type] = self._counters.get(actor_type, 0) + 1
@@ -61,12 +63,14 @@ class MockScene:
     def cnd_delete(self, name) -> str:
         if name not in self.actors:
             return json.dumps({"ok": False, "error": f"not found: {name}"})
+        self._save()
         del self.actors[name]
         return json.dumps({"ok": True, "action": "delete", "name": name})
 
     def cnd_move(self, name, location) -> str:
         if name not in self.actors:
             return json.dumps({"ok": False, "error": f"not found: {name}"})
+        self._save()
         self.actors[name]["location"] = [float(x) for x in location]
         return json.dumps({"ok": True, "action": "move", "name": name,
                            "location": self.actors[name]["location"]})
@@ -78,6 +82,7 @@ class MockScene:
         a = self.actors.get(name)
         if a is None:
             return json.dumps({"ok": False, "error": f"not found: {name}"})
+        self._save()
         if location is not None:
             a["location"] = [float(x) for x in location]
         if rotation is not None:
@@ -95,7 +100,30 @@ class MockScene:
                 "tags": a.get("tags", [])} for a in self.actors.values()]
         return json.dumps({"ok": True, "action": "list", "actors": out})
 
+    def cnd_snapshot(self) -> str:
+        """全量场景快照 (含旋转/缩放) —— 验证闭环的结构化"眼睛"。
+        cnd_list 是给 agent 看的简表, 这个是给 verifier 做前后 diff 的全表。"""
+        out = [{"name": a["name"], "class": a["type"],
+                "location": a["location"], "rotation": a["rotation"],
+                "scale": a["scale"]} for a in self.actors.values()]
+        return json.dumps({"ok": True, "action": "snapshot", "actors": out})
+
+    def cnd_undo(self, steps=1) -> str:
+        """回滚最近 steps 次改动 (对应真 UE 的 Transaction.Undo)。"""
+        steps = max(1, int(steps))
+        done = 0
+        for _ in range(steps):
+            if not self._history:
+                break
+            self.actors = self._history.pop()
+            done += 1
+        if done == 0:
+            return json.dumps({"ok": False, "error": "没有可撤销的改动"})
+        return json.dumps({"ok": True, "action": "undo", "undone": done,
+                           "actors_now": len(self.actors)})
+
     def cnd_clear(self, prefix=None) -> str:
+        self._save()
         before = len(self.actors)
         if prefix:
             self.actors = {k: v for k, v in self.actors.items()

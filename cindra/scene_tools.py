@@ -143,177 +143,23 @@ TOOLS: list[dict] = [
         },
     },
     {
-        "name": "search_assets",
-        "description": "用自然语言搜索工程里的真实资产 (mesh/材质/蓝图/PCG图)。"
-                       "想放'木箱/石头/树'这类真东西时先用它拿到 asset path, "
-                       "再 spawn_asset —— 别再用基础几何体凑合。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "如 'wooden crate 木箱'"},
-                "class_filter": {"type": "string",
-                                 "enum": ["static_mesh", "material", "blueprint",
-                                          "pcg_graph", "niagara", "any"],
-                                 "description": "限定资产类型, 默认 any"},
-                "k": {"type": "integer", "description": "返回条数, 默认 8"},
-            },
-            "required": ["query"],
-        },
+        "name": "inspect_viewport",
+        "description": "亲眼看一眼当前场景 (mock 后端返回 ASCII 俯视图, 真 UE 返回"
+                       "视口截图图片)。完成一组改动后必须调用它, 目视确认效果真的"
+                       "符合用户要求 —— 工具返回 ok 不等于场景看起来对。也用于对"
+                       "场景现状不确定、或用户问'现在什么样'时。",
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
-        "name": "spawn_asset",
-        "description": "按资产路径生成真实资产 Actor (StaticMesh/Blueprint)。"
-                       "path 必须来自 search_assets 的结果, 不要凭空猜路径。"
-                       "返回真实包围盒, 便于按尺寸摆位。",
+        "name": "undo",
+        "description": "撤销最近 steps 步场景改动 (mock: 状态历史回滚; 真 UE: "
+                       "编辑器 Transaction.Undo)。当你验证发现改坏了要回退、或"
+                       "用户说'撤销/恢复原样'时用。撤销后应 inspect_viewport 或 "
+                       "list_actors 确认回退结果。",
         "input_schema": {
             "type": "object",
-            "properties": {
-                "asset_path": {"type": "string"},
-                "name": {"type": "string", "description": "可选, 不给则自动命名"},
-                "location": {"type": "array", "items": {"type": "number"}},
-                "rotation": {"type": "array", "items": {"type": "number"}},
-                "scale": {"type": "array", "items": {"type": "number"}},
-            },
-            "required": ["asset_path"],
-        },
-    },
-    {
-        "name": "set_material",
-        "description": "给一个 Actor 换材质。material_path 来自 search_assets "
-                       "(class_filter=material)。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "actor_name": {"type": "string"},
-                "material_path": {"type": "string"},
-                "slot": {"type": "integer", "description": "材质槽, 默认 0"},
-            },
-            "required": ["actor_name", "material_path"],
-        },
-    },
-    {
-        "name": "spawn_light",
-        "description": "生成一盏灯 (point/spot/rect/directional)。单灯精调用它; "
-                       "整体布光氛围 (恐怖/黄金时刻/摄影棚/霓虹夜/阴天) 用 light_rig "
-                       "一步到位。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "light_type": {"type": "string",
-                               "enum": ["point", "spot", "rect", "directional"]},
-                "name": {"type": "string"},
-                "location": {"type": "array", "items": {"type": "number"}},
-                "rotation": {"type": "array", "items": {"type": "number"},
-                             "description": "spot/directional 的照射朝向"},
-                "intensity": {"type": "number", "description": "默认 5000"},
-                "color": {"type": "array", "items": {"type": "number"},
-                          "description": "[r,g,b] 0~1"},
-                "temperature": {"type": "number",
-                                "description": "开尔文色温 (设了会覆盖 color 的冷暖)"},
-                "cone_angle": {"type": "number", "description": "spot 外锥角, 默认 44"},
-            },
-            "required": ["light_type"],
-        },
-    },
-    {
-        "name": "light_rig",
-        "description": "一句话整套布光: 读回场景包围盒, 按风格生成一组灯 + 雾 + "
-                       "后处理 + 太阳。用户说'恐怖氛围/黄金时刻/摄影棚打光/赛博霓虹夜/"
-                       "阴天'这类整体光效时用它, 别逐盏摆。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "style": {"type": "string",
-                          "enum": ["horror", "golden_hour", "studio",
-                                   "night_neon", "overcast"]},
-                "intensity": {"type": "number",
-                              "description": "强度 0~1, 默认 0.6"},
-                "prefix": {"type": "string",
-                           "description": "可选, 只按此前缀的 Actor 算包围盒"},
-            },
-            "required": ["style"],
-        },
-    },
-    {
-        "name": "setup_environment",
-        "description": "单独设置环境要素: 天空大气/高度雾/后处理体积/天光/太阳。"
-                       "每类是单例, 重复设置会整体替换。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "kind": {"type": "string",
-                         "enum": ["sky_atmosphere", "exp_height_fog",
-                                  "post_process", "sky_light", "sun"]},
-                "params": {"type": "object",
-                           "description": "按 kind: fog {density, height_falloff}; "
-                                          "post_process {bloom_intensity, "
-                                          "auto_exposure_bias, vignette_intensity, "
-                                          "film_grain_intensity}; sun {rotation, "
-                                          "intensity, temperature}"},
-            },
-            "required": ["kind"],
-        },
-    },
-    {
-        "name": "pcg_scatter",
-        "description": "用 PCG 程序化填充一片区域 (森林/石滩/草地)。graph_path 来自 "
-                       "search_assets (class_filter=pcg_graph)。生成是异步的, 之后用 "
-                       "list_actors/look_at_scene 验证。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "graph_path": {"type": "string"},
-                "origin": {"type": "array", "items": {"type": "number"}},
-                "size": {"type": "array", "items": {"type": "number"},
-                         "description": "[x, y, z] cm, 默认 [2000,2000,500]"},
-                "name": {"type": "string"},
-            },
-            "required": ["graph_path"],
-        },
-    },
-    {
-        "name": "set_viewport_camera",
-        "description": "移动编辑器视口相机。orbit 模式最常用: 给中心/距离/角度环绕摆位。"
-                       "也可 location+look_at 或 location+rotation。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "location": {"type": "array", "items": {"type": "number"}},
-                "rotation": {"type": "array", "items": {"type": "number"},
-                             "description": "[pitch, yaw, roll] 度"},
-                "look_at": {"type": "array", "items": {"type": "number"},
-                            "description": "看向的点 [x,y,z]"},
-                "orbit": {"type": "object",
-                          "properties": {
-                              "center": {"type": "array",
-                                         "items": {"type": "number"}},
-                              "distance": {"type": "number"},
-                              "yaw": {"type": "number"},
-                              "pitch": {"type": "number"}}},
-            },
-        },
-    },
-    {
-        "name": "frame_scene",
-        "description": "自动把相机摆到能框住全场景 (或某前缀 Actor) 的位置。"
-                       "look_at_scene 前先调它, 保证看得到全貌。",
-        "input_schema": {
-            "type": "object",
-            "properties": {"prefix": {"type": "string"}},
-        },
-    },
-    {
-        "name": "look_at_scene",
-        "description": "截一张当前视口的图, 你会真的看到画面。搭建/修改场景后必须"
-                       "调用它检查实际效果: 布局是否符合要求、比例是否协调、有没有"
-                       "穿插或漂浮。看到问题就修, 修完再看, 最多 3 轮。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "view": {"type": "string", "enum": ["camera", "topdown"],
-                         "description": "camera=当前视口透视 (默认), "
-                                        "topdown=俯视布局图"},
-            },
+            "properties": {"steps": {"type": "integer",
+                                     "description": "撤销几步, 默认 1"}},
         },
     },
     {
@@ -643,6 +489,16 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
         return _arrange(transport, args["style"],
                         float(args.get("intensity", 0.6)),
                         args.get("prefix"))
+
+    if name == "inspect_viewport":
+        # 视觉通道走 transport.viewport() 而非 cnd_* 直发: 真 UE 版要在 CLI 侧
+        # 轮询截图落盘 (见 transport.RemoteExecTransport.viewport 注释)。
+        if hasattr(transport, "viewport"):
+            return transport.viewport()
+        return {"ok": False, "error": "该后端不支持视觉通道"}
+
+    if name == "undo":
+        return transport.call("cnd_undo", steps=int(args.get("steps", 1)))
 
     if name == "list_actors":
         return transport.call("cnd_list")

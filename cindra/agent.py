@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import scene_tools
+from . import scene_tools, verifier
 from .base_agent import CindraAgent, _json
 from .scene_tools import ChatContext
 from .transport import Transport
@@ -33,13 +33,16 @@ SYSTEM_PROMPT = """你是 CindraChat —— 嵌在 UE5 编辑器里的 AI 关卡
 - 坐标用 UE 单位 (厘米); 场景中心约 [0,0,0]。
 - 破坏性操作 (clear_scene) 前先向用户确认。
 
-视觉闭环 (你有眼睛, 用它):
-- 搭建或大改场景后: 先 frame_scene 摆好相机, 再 look_at_scene 真正看一眼。
-- 对照用户的要求批判画面: 布局对不对、比例协调吗、有没有物体穿插/漂浮/挤成一团。
-- 看到问题就修, 修完再看。最多 3 轮 look-fix, 之后基于现状收尾并如实汇报。
-- 文字状态 (list_actors) 和画面不一致时, 以画面为准。
+验证闭环 (act → observe → verify → correct):
+- 每次改场景的工具调用都会被自动硬校验 (前后快照对账), 结果附在 verify 字段里。
+  如果工具结果带 "VERIFY FAILED", 说明操作没真正生效或效果不符 —— 不要复述失败,
+  根据失败原因换方案重试; 连续失败 2 次就 undo 回退并如实告诉用户卡在哪。
+- 完成一组改动后调用 inspect_viewport 亲眼确认 (mock 是 ASCII 俯视图, 真 UE 是
+  视口截图)。看到的效果和用户要求不符时, 主动修正后再看一次, 直到符合。
+- 改坏了用 undo 回退, 撤销后确认回退结果。
+- 不要"自信地以为成了" —— 只有校验通过 + 亲眼看过才算完成。
 
-回答简洁。做完一件事用一两句话说清你做了什么、画面里实际看到什么。"""
+回答简洁。做完一件事用一两句话说清你做了什么、验证结果如何。"""
 
 
 class CindraChatAgent(CindraAgent):
@@ -55,16 +58,37 @@ class CindraChatAgent(CindraAgent):
         super().__init__(ctx, scene_tools, client=client, verbose=verbose)
         self.transport = transport  # 供 CLI/session 直接访问
 
+    # ---- 验证闭环: 改动前后拍快照, 用 verifier 对账 (见 verifier.py) ----
+
+    def _pre_tool(self, name: str, args: dict):
+        if name in verifier.MUTATING_TOOLS:
+            return verifier.take_snapshot(self.target)
+        return None
+
+    def _post_tool(self, name: str, args: dict, result: dict, ctx) -> dict:
+        if name not in verifier.MUTATING_TOOLS:
+            return result
+        after = verifier.take_snapshot(self.target)
+        ok, why = verifier.verify(name, args, result, ctx, after)
+        if not ok:
+            # 校验覆盖工具自报的 ok —— 失败证据回喂, 让 agent 自己决定
+            # 重试/换方案/undo, 而不是在这里写死修正策略。
+            return {**result, "ok": False,
+                    "error": f"VERIFY FAILED: {why}",
+                    "verify": {"ok": False, "why": why}}
+        result["verify"] = {"ok": True, "why": why}
+        return result
+
     def _fmt_result(self, r: dict) -> str:
         if not r.get("ok", True):
             return f"❌ {r.get('error')}"
+        v = r.get("verify", {})
+        tick = f"  ✓ {v['why']}" if v.get("ok") else ""
         if r.get("action") == "list":
             return f"{len(r.get('actors', []))} actors"
+        if r.get("action") == "viewport":
+            return "截图已回喂" if r.get("_image_path") else "俯视图已回喂"
         if r.get("action") == "spawn_grid":
-            return f"生成 {r.get('count')} 个 {r.get('type')}"
-        if r.get("action") == "screenshot":
-            return f"📷 {r.get('path')}"
-        if r.get("action") == "search_assets":
-            hits = r.get("hits", [])
-            return f"{len(hits)} 个资产: " + ", ".join(h["name"] for h in hits[:4])
-        return _json({k: v for k, v in r.items() if k != "ok"})
+            return f"生成 {r.get('count')} 个 {r.get('type')}{tick}"
+        return _json({k: v for k, v in r.items()
+                      if k not in ("ok", "verify")}) + tick
