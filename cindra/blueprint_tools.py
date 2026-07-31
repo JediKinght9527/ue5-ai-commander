@@ -3,6 +3,9 @@
 对照 scene_tools.py。把"操控蓝图图"暴露成 dedicated 工具: 加节点、加变量、
 连引脚、列图、删节点、清空。每个工具映射到 transport 的一个 bp_*()。
 
+新增 inject_blueprint_t3d: 用常见模板一步建好整张子图 (BeginPlay→Print 等),
+比逐节点 add_node→connect 快得多。模板在 t3d_templates.py 里定义。
+
 dedicated 工具的好处 (同 scene_tools): 每步可校验、可渲染、可审计。连线的
 合法性校验在图模型/真 UE schema 里做, 工具层只负责派发并把结果回给 agent。
 """
@@ -11,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from .blueprint_model import node_templates
+from .t3d_templates import list_templates as _list_t3d_templates
 
 # 节点类型枚举从模板派生, 保证工具 schema 和模型一致。
 _NODE_TYPES = list(node_templates().keys())
@@ -97,6 +101,31 @@ TOOLS: list[dict] = [
         },
     },
     {
+        "name": "list_blueprint_templates",
+        "description": "列出可用的蓝图 T3D 模板 (如 event_print/branch_print/delayed_print等)。"
+                       "每个模板是一次性注入的整张子图 —— 比逐节点 add_node→connect 快得多。"
+                       "选好模板后用 inject_blueprint_t3d 注入。",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "inject_blueprint_t3d",
+        "description": "用 T3D 模板一次性注入一组节点+连线 (BeginPlay→PrintString, "
+                       "Branch+双路打印, 比较+分支等)。传模板名和参数值, "
+                       "工具负责建全部节点并连好线、设好默认值。"
+                       "先用 list_blueprint_templates 看有哪些模板、各需要什么参数。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "template": {"type": "string",
+                             "enum": list(_list_t3d_templates().keys()),
+                             "description": "模板名, 见 list_blueprint_templates"},
+                "params": {"type": "object",
+                           "description": "参数覆盖字典, 不传的用默认值"},
+            },
+            "required": ["template"],
+        },
+    },
+    {
         "name": "list_graph",
         "description": "列出当前图的所有节点、连线、变量。建图过程中和完成后用它读回真实"
                        "结构自检, 确认节点连对了 —— 不要'自信地以为连上了'。",
@@ -150,5 +179,18 @@ def dispatch(transport: Any, name: str, args: dict[str, Any]) -> dict:
 
     if name == "clear_graph":
         return transport.call("bp_clear")
+
+    if name == "list_blueprint_templates":
+        from .t3d_templates import list_templates
+        return {"ok": True, "action": "list_blueprint_templates",
+                "templates": list_templates()}
+
+    if name == "inject_blueprint_t3d":
+        from .t3d_templates import inject
+        # 找到 graph 对象: transport 如果是 MockBlueprintTransport 或后面加了 .graph
+        graph = getattr(transport, "graph", None)
+        if graph is None:
+            return {"ok": False, "error": "当前 blueprint transport 不支持 T3D 注入 (需要 graph 属性)"}
+        return inject(graph, args["template"], args.get("params", {}))
 
     return {"ok": False, "error": f"unknown tool: {name}"}
