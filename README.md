@@ -2,7 +2,21 @@
 
 # cindra
 
-自然语言控制 Unreal Engine 5.7 的工具集。43 个 MCP 工具，覆盖场景编辑、问答、C++ 生成、蓝图、PCG 程序化生成、运镜、布光、PIE 自动化。支持 Claude Code / Cursor，mock 后端在 Mac 上就能跑，不用开 UE。
+自然语言控制 Unreal Engine 5.7。43 个 MCP 工具：改场景、PCG 程序化生成、搭蓝图、写 C++、UE 问答、运镜、布光、PIE 自动化。支持 Claude Code / Cursor。
+
+**没装 UE 也能跑** —— mock 后端在 Mac 上一键验证整条链路。
+
+<p align="center">
+  <img src="assets/demo_view.png" width="640" alt="cindra demo: PCG 生成的橡树林 (mock 渲染)">
+</p>
+
+上面这片橡树林是这么来的：
+
+```
+python -m cindra.demo
+```
+
+一句 PCG 管线（landscape → sampler → 平坦过滤 → 随机变换 → spawn）在 200×200m 地形上撒出 141 棵橡树，只长在平坦区域。全程 mock，无 UE、无 API key。三行命令就能复现。
 
 ---
 
