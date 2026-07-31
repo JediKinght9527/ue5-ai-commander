@@ -27,6 +27,12 @@ class MockScene:
         # 撤销栈: 每次改动前压入整个场景的深拷贝, 对应真 UE 的 transaction 撤销。
         # 上限 100 条防止长会话吃内存。
         self._history: list[dict[str, dict[str, Any]]] = []
+        # 模拟相机状态 (session 持久化 + cnd_set_camera/cnd_screenshot 使用)
+        self.camera: dict[str, Any] = {
+            "location": [500.0, 500.0, 500.0],
+            "rotation": [0.0, 0.0, 0.0],
+            "fov": 90.0,
+        }
 
     def _save(self) -> None:
         """改动前存档 (相当于开一个 transaction)。"""
