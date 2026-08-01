@@ -1,0 +1,59 @@
+name: self-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '37 8 * * 1'  # weekly on Monday
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r requirements.txt
+      - name: docs_index
+        run: python -m cindra.docs_index
+      - name: project_index
+        run: python -m cindra.project_index
+      - name: mock_ue
+        run: python -m cindra.mock_ue
+      - name: verifier
+        run: python -m cindra.verifier
+      - name: pcg_model
+        run: python -m cindra.pcg_model
+      - name: tripo_pcg_bridge
+        run: python -m cindra.tripo_pcg_bridge
+      - name: session
+        run: python -m cindra.session
+      - name: asset_index
+        run: python -m cindra.asset_index
+      - name: camera_math
+        run: python -m cindra.camera_math
+      - name: cine_model
+        run: python -m cindra.cine_model
+      - name: imaging
+        run: python -m cindra.imaging
+      - name: lighting_rigs
+        run: python -m cindra.lighting_rigs
+      - name: mock_viewport
+        run: python -m cindra.mock_viewport
+      - name: blueprint_model
+        run: python -m cindra.blueprint_model
+      - name: t3d_templates
+        run: python -m cindra.t3d_templates
+      - name: pie_tools
+        run: python -m cindra.pie_tools
+      - name: mcp_server
+        run: python -m cindra.mcp_server --selfcheck
+      - name: demo
+        run: python -m cindra.demo --check
