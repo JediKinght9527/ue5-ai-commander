@@ -1,8 +1,8 @@
-# Changelog
-
-本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
-
 ## Unreleased
+
+## 0.3.0 (2026-09-27)
+
+首个公开版本。9 个模块域、48 个 MCP 工具、mock/真引擎双后端 —— PCG 程序化生成、蓝图图、C++ 生成、引擎 RAG 问答、运镜、布光、PIE 自动化。
 
 ### Fixed
 
@@ -30,6 +30,6 @@
 - `zip` 调用全部显式声明 `strict=`：长度应相等的用 `True`（不等即 bug），滑窗配对用 `False`。
 - 断言总数 103 → 121。
 
-## 0.3.0
+### 初始功能
 
-- 初始版本：9 个模块域（chat / docs / code / blueprint / pcg / cine / lighting / asset / blockout）、43 个 MCP 工具、mock/真引擎双后端、PCG 程序化生成、蓝图图、C++ 生成、引擎 RAG 问答、运镜、布光。
+9 个模块域（chat / docs / code / blueprint / pcg / cine / lighting / asset / blockout）、mock/真引擎双后端、PCG 程序化生成、蓝图图、C++ 生成、引擎 RAG 问答、运镜、布光。工具数以本文档顶部的 48 为准。
