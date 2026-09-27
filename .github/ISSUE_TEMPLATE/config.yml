@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 漏洞报告（私下）
+    url: https://github.com/JediKinght9527/ue5-ai-commander/security/advisories/new
+    about: 请不要用公开 Issue 报安全问题
+  - name: 怎么用（README）
+    url: https://github.com/JediKinght9527/ue5-ai-commander#readme
+    about: 安装、MCP 配置、工具清单
+  - name: 贡献指南
+    url: https://github.com/JediKinght9527/ue5-ai-commander/blob/main/CONTRIBUTING.md
+    about: 验证命令与提交约定

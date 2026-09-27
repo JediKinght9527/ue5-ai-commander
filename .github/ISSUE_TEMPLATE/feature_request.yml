@@ -1,0 +1,42 @@
+name: Feature request
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题
+      description: 先说问题，别直接说加什么功能
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议怎么做
+      description: 工具名 / 参数 / 返回结构如果会变，请写明迁移方式
+      render: text
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影响范围
+      options:
+        - 只加新工具，不动现有工具
+        - 改现有工具的 schema 或返回结构（对外契约变化）
+        - 改核心逻辑（PCG / 蓝图 / 校验）
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 你考虑过的替代方案
+      render: text
+
+  - type: checkboxes
+    id: contrib
+    attributes:
+      label: 参与
+      options:
+        - label: 我愿意提 PR 实现

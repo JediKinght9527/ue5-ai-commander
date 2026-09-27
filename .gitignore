@@ -26,3 +26,8 @@ output/
 .vscode/
 .idea/
 .DS_Store
+
+dist/
+.venv/
+__pycache__/
+*.pyc

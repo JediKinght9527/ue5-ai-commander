@@ -6,54 +6,96 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '37 8 * * 1'  # weekly on Monday
+    - cron: "37 8 * * 1" # 每周一
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  # 全部模块的离线自检。不需要 UE、不需要 API key。
+  # 4 组矩阵: ubuntu/macos × py3.11/3.12
+  selfcheck:
+    name: selfcheck (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.11', '3.12']
+        python-version: ["3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          python-version: ${{ matrix.python-version }}
-      - run: pip install -r requirements.txt
-      - name: docs_index
-        run: python -m cindra.docs_index
-      - name: project_index
-        run: python -m cindra.project_index
-      - name: mock_ue
-        run: python -m cindra.mock_ue
-      - name: verifier
-        run: python -m cindra.verifier
-      - name: pcg_model
-        run: python -m cindra.pcg_model
-      - name: tripo_pcg_bridge
-        run: python -m cindra.tripo_pcg_bridge
-      - name: session
-        run: python -m cindra.session
-      - name: asset_index
-        run: python -m cindra.asset_index
-      - name: camera_math
-        run: python -m cindra.camera_math
-      - name: cine_model
-        run: python -m cindra.cine_model
-      - name: imaging
-        run: python -m cindra.imaging
-      - name: lighting_rigs
-        run: python -m cindra.lighting_rigs
-      - name: mock_viewport
-        run: python -m cindra.mock_viewport
-      - name: blueprint_model
-        run: python -m cindra.blueprint_model
-      - name: t3d_templates
-        run: python -m cindra.t3d_templates
-      - name: pie_tools
-        run: python -m cindra.pie_tools
-      - name: mcp_server
-        run: python -m cindra.mcp_server --selfcheck
-      - name: demo
-        run: python -m cindra.demo --check
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run all module self-checks
+        run: uv run --frozen python run_selfchecks.py
+
+      - name: MCP server self-check
+        run: uv run --frozen python run_selfchecks.py mcp_server
+
+      - name: Demo self-check
+        run: uv run --frozen python -m cindra.demo --check
+
+  # 静态检查与类型检查。matrix 只需一个组合 —— 这两项与平台/版本无关。
+  lint:
+    name: lint & types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Ruff
+        run: uv run --frozen ruff check cindra/
+
+      # 刻意不跑 `ruff format --check`: 全量格式化会重排 45 个文件,
+      # 混进功能修复里 diff 就没法 review 了。等功能稳定后单独一个 commit 做。
+
+      - name: Pyright
+        run: uv run --frozen pyright
+
+      # README 里的工具数/模块数/断言数是断言出来的, 不是手写的。
+      # 这项专门防文档漂移 —— 之前就出现过"标题 43 / 清单 49 / 实际 45"三个数打架。
+      - name: README consistency
+        run: uv run --frozen python check_readme_consistency.py
+
+  # 打包检查: 保证 wheel 真的能构建（pyproject 改坏会在这里红）
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Check metadata
+        run: uv run --with twine twine check dist/*

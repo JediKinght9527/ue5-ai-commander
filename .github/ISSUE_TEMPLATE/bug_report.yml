@@ -1,0 +1,73 @@
+name: Bug report
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。**工具报 ok 但引擎里没生效**这类问题最值钱，请优先报这种。
+
+  - type: dropdown
+    id: backend
+    attributes:
+      label: 后端
+      options:
+        - mock（不需要 UE）
+        - 真 UE 5.7
+        - 两者都试过
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - macOS
+        - Windows
+        - 两者
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python 版本
+      placeholder: "3.12.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么
+      description: 期望的行为 vs 实际的行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 最小复现
+      description: |
+        PCG 图：从一句话或几个节点开始描述。
+        1.
+        2.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: 自检输出
+      description: "`python -m cindra.<模块>` 的输出，或 MCP 的 JSON 响应"
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 补充信息
+      options:
+        - label: 我跑过 `python run_selfchecks.py`，失败模块是
+        - label: 这是确定性相关（同输入两次结果不同）
+        - label: 这与 README 描述不一致

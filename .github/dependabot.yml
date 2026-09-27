@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Python 依赖（含 dev 组的 ruff / pyright）
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: development
+
+  # 工作流里的 action 都按 commit SHA 固定，需要 dependabot 跟进这些 pin
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
