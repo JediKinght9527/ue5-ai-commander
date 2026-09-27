@@ -93,6 +93,7 @@ class RemoteExecClient:
 
     def exec(self, code: str, mode: str = "ExecuteStatement") -> str:
         self._ensure()
+        assert self._conn is not None  # _ensure 连不上会 raise, 到这里必然有
         res = self._conn.run_command(
             code, unattended=True,
             exec_mode=mode)  # 'remote_execution' 的执行模式

@@ -45,11 +45,13 @@ class _Canvas:
     def __init__(self, width: int, height: int) -> None:
         self.w = width
         self.h = height
-        self.px = [list(_BG) for _ in range(width * height)]
+        # 显式标注: 不标的话 _BG 是模块常量, 会被推成 tuple[Literal[24,26,30],...]
+        # 然后 set() 里塞 list[int] 就报类型不匹配
+        self.px: list[list[int]] = [list(_BG) for _ in range(width * height)]
 
     def set(self, x: int, y: int, rgb: tuple[int, int, int]) -> None:
         if 0 <= x < self.w and 0 <= y < self.h:
-            self.px[y * self.w + x] = list(rgb)
+            self.px[y * self.w + x] = [int(rgb[0]), int(rgb[1]), int(rgb[2])]
 
     def fill_rect(self, cx: float, cy: float, hx: float, hy: float,
                   yaw_deg: float, rgb: tuple[int, int, int]) -> None:

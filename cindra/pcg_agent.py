@@ -21,8 +21,6 @@ import anthropic
 from . import pcg_tools, pcg_verifier
 from .base_agent import CindraAgent, _json
 from .pcg_model import PCGGraph
-from .scene_tools import TOOLS as _CHAT_TOOLS
-from .verifier import MUTATING_TOOLS as _CHAT_MUTATING_TOOLS
 
 MODEL = "claude-opus-4-8"
 

@@ -20,8 +20,9 @@ handler 签名统一为 `(args: dict, state: ServerState) -> dict`，由 `resolv
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:  # 避免运行时循环导入
     from .mcp_server import _ServerState
@@ -80,10 +81,7 @@ class ToolRegistry:
 
         用于「schema 由模块统一登记，但执行入口特殊」的工具。
         """
-        spec = self._specs.get(name)
-        if spec is None:
-            raise KeyError(f"未登记的工具: {name}")
-        self._specs[name] = replace(spec, handler=handler)
+        self._specs[name] = replace(self.require(name), handler=handler)
 
     # ── 查询 ──
 
@@ -99,6 +97,14 @@ class ToolRegistry:
     def get(self, name: str) -> ToolSpec | None:
         return self._specs.get(name)
 
+    def require(self, name: str) -> ToolSpec:
+        """取已登记的工具, 没有就抛 KeyError。用于内部/自检这种"必然存在"的场景,
+        省掉每处 `x = reg.get(n); assert x is not None` 的收窄噪音。"""
+        spec = self._specs.get(name)
+        if spec is None:
+            raise KeyError(f"未登记的工具: {name}")
+        return spec
+
     def module_of(self, name: str) -> str | None:
         spec = self._specs.get(name)
         return spec.module if spec else None
@@ -109,7 +115,7 @@ class ToolRegistry:
 
     # ── 执行 ──
 
-    def resolve(self, name: str, args: dict, state: "_ServerState") -> dict:
+    def resolve(self, name: str, args: dict, state: _ServerState) -> dict:
         """按名字执行工具。未知工具与未接线工具分别给出可区分的错误。"""
         spec = self._specs.get(name)
         if spec is None:
@@ -157,6 +163,13 @@ def _selfcheck() -> int:
     def ok(msg: str) -> None:
         print(f"✅ {msg}")
 
+    class _Stub:
+        """占位 state。注册表本身不碰 state, handler 也不碰 —— 给个真实对象
+        比传 None 诚实。用 cast 是因为 _ServerState 只在 TYPE_CHECKING 下可见
+        (避免运行时循环导入), 静态检查这里拿不到真类型。"""
+
+        backend = "mock"
+
     # 1) 注册与查表
     reg = ToolRegistry()
     reg.add(ToolSpec("a", "[X] a", {"type": "object"}, "x", lambda args, s: {"ok": True}))
@@ -175,14 +188,14 @@ def _selfcheck() -> int:
         ToolSpec("a", "[Y] a", {"type": "object"}, "y", lambda args, s: {}),
         on_conflict="skip",
     )
-    assert reg.get("a").module == "x", "skip 应该保留先注册者"
+    assert reg.require("a").module == "x", "skip 应该保留先注册者"
     assert reg.conflicts == [("a", "y")]
     ok("skip 保留先注册者并记冲突")
 
     # 4) rebind 换 handler 但保留 schema
     reg.rebind("a", lambda args, s: {"ok": "rebound"})
-    assert reg.get("a").input_schema == {"type": "object"}
-    assert reg.resolve("a", {}, None) == {"ok": "rebound"}
+    assert reg.require("a").input_schema == {"type": "object"}
+    assert reg.resolve("a", {}, cast("_ServerState", _Stub())) == {"ok": "rebound"}
     ok("rebind 保留 schema")
 
     # 5) rebind 不存在的工具要报错
@@ -194,13 +207,13 @@ def _selfcheck() -> int:
 
     # 6) 未接线工具给出可区分的错误
     reg.add(ToolSpec("loose", "[Z] loose", {"type": "object"}, "z"))
-    err = reg.resolve("loose", {}, None)
+    err = reg.resolve("loose", {}, cast("_ServerState", _Stub()))
     assert err["ok"] is False and "not wired" in err["error"]
     assert reg.unwired() == ["loose"]
     ok("未接线工具报 'not wired' 并可列出")
 
     # 7) 未知工具
-    err = reg.resolve("ghost", {}, None)
+    err = reg.resolve("ghost", {}, cast("_ServerState", _Stub()))
     assert err == {"ok": False, "error": "unknown tool: ghost"}
     ok("未知工具报 'unknown tool'")
 

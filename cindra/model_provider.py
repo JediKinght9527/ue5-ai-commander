@@ -6,12 +6,11 @@ DeepSeek/GLM/OpenAI 这类兼容接口可以共用同一套 Cindra 工具循环�
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
+from dataclasses import dataclass
 from typing import Any
-from urllib import request, error
-
+from urllib import error, request
 
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -423,18 +422,21 @@ def _to_openai_messages(system_prompt: str, messages: list[dict]) -> list[dict]:
                 if not images:
                     continue
                 if os.environ.get("CINDRA_VISION") == "1":
-                    parts = [{"type": "text",
-                              "text": "(上一个工具返回的截图)"}]
+                    # 标注成 list[Any]: 里面既有纯文本块, 也有嵌套的
+                    # image_url 结构, 不标的话推成 list[dict[str, str]]
+                    # 之后 append 嵌套 dict 会报错
+                    parts: list[Any] = [{"type": "text",
+                                         "text": "(上一个工具返回的截图)"}]
                     for img in images:
                         src = img.get("source", {})
                         parts.append({"type": "image_url", "image_url": {
-                            "url": "data:%s;base64,%s" % (
+                            "url": "data:{};base64,{}".format(
                                 src.get("media_type", "image/png"),
                                 src.get("data", ""))}})
-                    out.append({"role": "user", "content": parts})
+                    out.append({"role": "user", "content": parts})  # type: ignore[arg-type]
                 else:
                     out.append({"role": "user", "content":
-                                "(工具返回了 %d 张截图, 但当前模型不支持看图; "
-                                "设 CINDRA_VISION=1 且换视觉模型可启用视觉闭环)"
-                                % len(images)})
+                                f"(工具返回了 {len(images)} 张截图, "
+                                "但当前模型不支持看图; "
+                                "设 CINDRA_VISION=1 且换视觉模型可启用视觉闭环)"})
     return out

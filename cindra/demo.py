@@ -17,10 +17,7 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
-
 import sys
-from typing import Any
 
 # 让 demo 在仓库外也能跑 (pip install -e 或直接 clone 后运行)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,8 +28,8 @@ def build_forest_scene():
 
     返回 (pcg_graph, mock_scene, spawn_points)。
     """
-    from cindra.pcg_model import PCGGraph
     from cindra.mock_ue import MockScene
+    from cindra.pcg_model import PCGGraph
 
     g = PCGGraph()
     g.add_node("landscape_input", "terrain",
@@ -61,7 +58,6 @@ def build_forest_scene():
 
     # 把 spawn 点装进 MockScene, 便于用 mock_viewport 渲 PNG
     scene = MockScene()
-    spawn_pts = result["outputs"][-1]["stats"]
     trees = g.nodes["trees"]["cache"]["points"]
     for i, p in enumerate(trees):
         scene.cnd_spawn(
@@ -144,18 +140,13 @@ def _render_forest_closeup(actors, path: str, width: int = 1280,
 
     cv = _C(width, height)
 
-    # 画地面网格
-    step = 2000.0
-    for k in range(-4, 5):
-        for wx in (-k * step,):
-            # 投影一个地面点
-            for wy in (-k * step, k * step):
-                pass
     # 地面: 大片暗绿渐变 (简单均匀色)
+    # 原来这里还有个"画地面网格"的三层循环, 循环体只有 pass —— 注释说
+    # "投影一个地面点"但什么也没投影, 是没写完的残留, 直接删掉。
     for y in range(height):
         shade = 30 + int(18 * y / height)
         row_rgb = (shade, 40 + int(10 * y / height), shade - 8)
-        cv.px[y] = [[*row_rgb]] * width
+        cv.px[y] = [row_rgb] * width
 
     # painter: 从远到近
     proj = []
@@ -235,7 +226,7 @@ def _check() -> int:
         g2, s2, trees2 = build_forest_scene()
         assert len(trees1) == len(trees2) == len(trees1), "两次建树数量不一致"
         assert all(a["location"] == b["location"]
-                   for a, b in zip(trees1, trees2)), "两次树的位置不一致"
+                   for a, b in zip(trees1, trees2, strict=True)), "两次树的位置不一致"
         print(f"[1/3] 确定性: 两次运行产出 {len(trees1)} 棵树, 位置完全一致 ✓")
 
         # PNG 两次渲染字节级一致
@@ -244,7 +235,8 @@ def _check() -> int:
         top2 = os.path.join(td, "b.png")
         render_topdown_png(s1.actors, top1, span=12000)
         render_topdown_png(s2.actors, top2, span=12000)
-        assert open(top1, "rb").read() == open(top2, "rb").read(), "PNG 渲染不确定"
+        with open(top1, "rb") as f1, open(top2, "rb") as f2:
+            assert f1.read() == f2.read(), "PNG 渲染不确定"
         print("[2/3] PNG 渲染确定性 ✓")
 
         # PNG 是合法文件且非空

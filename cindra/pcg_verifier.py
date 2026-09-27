@@ -10,7 +10,6 @@
 """
 from __future__ import annotations
 
-
 # PCG 中会改图结构或产生场景副作用的工具
 MUTATING_PCG_TOOLS = {
     "add_pcg_node", "connect_pcg_pins", "set_pcg_param",
@@ -47,7 +46,12 @@ def verify_graph_edit(tool: str, args: dict, result: dict,
     if not result.get("ok", True):
         return True, "工具已自报失败, 无需对账"
 
-    diff = graph_diff(before, after)
+    # 快照拿不到时降级成空 dict: graph_diff 本身能吃 None, 但下面按节点/连线
+    # 对账的地方直接 after.get(...) / before["links"], 传 None 会 TypeError,
+    # 报出来的错还跟"图形校验失败"毫无关系。
+    before = before or {}
+    after = after or {}
+    graph_diff(before, after)
 
     if tool == "add_pcg_node":
         # 确认节点真的加进去了

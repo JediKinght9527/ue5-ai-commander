@@ -28,7 +28,7 @@ def _sample_pose(keys: list[dict], frame: float) -> tuple[list, list]:
         return list(ks[0]["location"]), list(ks[0]["rotation"])
     if frame >= ks[-1]["frame"]:
         return list(ks[-1]["location"]), list(ks[-1]["rotation"])
-    for lo, hi in zip(ks, ks[1:]):
+    for lo, hi in zip(ks, ks[1:], strict=False):
         if lo["frame"] <= frame <= hi["frame"]:
             span = hi["frame"] - lo["frame"] or 1
             t = (frame - lo["frame"]) / span

@@ -1,0 +1,80 @@
+[project]
+name = "ue5-ai-commander"
+version = "0.3.0"
+description = "Natural-language control for Unreal Engine 5.7 over MCP: scene editing, PCG, Blueprints, C++, engine Q&A, cinematics, lighting, PIE automation. Runs without UE."
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["unreal-engine", "ue5", "mcp", "llm", "agent", "pcg", "blueprint", "procedural-generation"]
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.106",
+]
+
+# 发行名是 ue5-ai-commander, import 名沿用 cindra —— 与 scikit-learn/sklearn 同理。
+# 刻意保留 cindra 这个 import 名: 43 个模块、MCP 配置示例、CI 命令全用它,
+# 改 import 名要动的地方远多于收益。
+[project.urls]
+Homepage = "https://github.com/JediKinght9527/ue5-ai-commander"
+Repository = "https://github.com/JediKinght9527/ue5-ai-commander"
+Issues = "https://github.com/JediKinght9527/ue5-ai-commander/issues"
+Changelog = "https://github.com/JediKinght9527/ue5-ai-commander/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "pyright>=1.1.360",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cindra"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/cindra",
+    "/ue_plugin",
+    "/docs",
+    "/assets",
+    "/tests",
+    "/check_ue.py",
+    "/run_selfchecks.py",
+    "/README.md",
+    "/README.en.md",
+    "/COMMAND_RUNNERS.md",
+    "/WINDOWS_SETUP.md",
+    "/LICENSE",
+    "/SECURITY.md",
+    "/CONTRIBUTING.md",
+    "/CODE_OF_CONDUCT.md",
+    "/CHANGELOG.md",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM"]
+ignore = [
+    "E501",    # 行宽交给 formatter, 不在 lint 里报
+    "B008",    # dispatch 里大量 kwargs 默认值写法是刻意的
+    "SIM108",  # 三元表达式不一定更清楚
+    "UP038",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.pyright]
+include = ["cindra"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingTypeStubs = false
+# mock 与真引擎两套实现, 部分属性只在其中一套存在
+reportAttributeAccessIssue = false
+# remote_execution / unreal 是 UE 引擎自带模块, 只在引擎的 Python 环境里存在。
+# 本地和 CI 都没有引擎, 不该报"找不到模块"。
+reportMissingImports = "warning"

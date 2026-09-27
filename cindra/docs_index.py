@@ -17,7 +17,6 @@ import math
 import os
 import re
 from collections import Counter
-from typing import Any
 
 # corpus 默认目录: 与本文件同级的 docs_corpus/
 CORPUS_DIR = os.path.join(os.path.dirname(__file__), "docs_corpus")
@@ -39,33 +38,44 @@ def chunk_corpus(corpus_dir: str = CORPUS_DIR) -> list[dict]:
     for fname in sorted(os.listdir(corpus_dir)):
         if not fname.endswith(".md"):
             continue
-        path = os.path.join(corpus_dir, fname)
-        with open(path, encoding="utf-8") as f:
-            lines = f.read().splitlines()
-        title = None
-        buf: list[str] = []
-
-        def flush():
-            if title is None:
-                return
-            text = "\n".join(buf).strip()
-            chunks.append({
-                "id": f"{fname}#{len(chunks)}",
-                "title": title,
-                "file": fname,
-                "text": text,
-            })
-
-        for line in lines:
-            m = re.match(r"^#{1,3}\s+(.*)$", line)
-            if m:
-                flush()
-                title = m.group(1).strip()
-                buf = []
-            else:
-                buf.append(line)
-        flush()
+        chunks.extend(_chunk_file(os.path.join(corpus_dir, fname), fname, len(chunks)))
     return chunks
+
+
+def _chunk_file(path: str, fname: str, id_offset: int) -> list[dict]:
+    """把一个 .md 按 `#`/`##`/`###` 标题切块。
+
+    原来是 chunk_corpus 里的内嵌闭包 flush()，捕获 title/buf/fname 三个循环
+    变量 —— 当前用法没触发 bug（flush 只在同一次迭代内调用），但闭包跟着循环
+    变量走是典型的踩雷姿势，拆成独立函数后每个文件的解析状态自成一体。
+    """
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().splitlines()
+
+    out: list[dict] = []
+    title: str | None = None
+    buf: list[str] = []
+
+    def emit() -> None:
+        if title is None:
+            return
+        out.append({
+            "id": f"{fname}#{id_offset + len(out)}",
+            "title": title,
+            "file": fname,
+            "text": "\n".join(buf).strip(),
+        })
+
+    for line in lines:
+        m = re.match(r"^#{1,3}\s+(.*)$", line)
+        if m:
+            emit()
+            title = m.group(1).strip()
+            buf = []
+        else:
+            buf.append(line)
+    emit()
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +106,7 @@ def tokenize(text: str) -> list[str]:
     # 中文: 单字 (去停用词) + 二元组 (去纯虚词组合)
     cjk = re.findall(r"[一-鿿]", text)
     tokens.extend(ch for ch in cjk if ch not in _STOP_CJK)
-    for a, b in zip(cjk, cjk[1:]):
+    for a, b in zip(cjk, cjk[1:], strict=False):
         bigram = a + b
         if bigram in _STOP_BIGRAM:
             continue
@@ -147,7 +157,7 @@ class LexicalIndex:
     def search(self, query: str, k: int = 4) -> list[dict]:
         q_terms = tokenize(query)
         scored = []
-        for i, c in enumerate(self.chunks):
+        for i, _c in enumerate(self.chunks):
             s = self._score(i, q_terms)
             if s > 0:
                 scored.append((s, i))
@@ -194,7 +204,7 @@ class EmbeddingIndex:
 
     @staticmethod
     def _cosine(a: list[float], b: list[float]) -> float:
-        dot = sum(x * y for x, y in zip(a, b))
+        dot = sum(x * y for x, y in zip(a, b, strict=True))
         na = math.sqrt(sum(x * x for x in a))
         nb = math.sqrt(sum(y * y for y in b))
         return dot / (na * nb) if na and nb else 0.0

@@ -143,7 +143,9 @@ class BlueprintGraph:
         return json.dumps({"ok": True, "action": "add_variable",
                            "name": name, "type": var_type})
 
-    def _find_pin(self, node_id, pin_name):
+    def _find_pin(self, node_id, pin_name) -> tuple[dict[str, Any] | None, str | None]:
+        """找引脚。返回 (引脚, None) 或 (None, 错误原因)。"""
+
         node = self.nodes.get(node_id)
         if not node:
             return None, f"节点不存在: {node_id}"
@@ -155,11 +157,11 @@ class BlueprintGraph:
 
     def bp_connect(self, from_node, from_pin, to_node, to_pin) -> str:
         src, err = self._find_pin(from_node, from_pin)
-        if err:
-            return json.dumps({"ok": False, "error": err})
+        if err or src is None:
+            return json.dumps({"ok": False, "error": err or "引脚不存在"})
         dst, err = self._find_pin(to_node, to_pin)
-        if err:
-            return json.dumps({"ok": False, "error": err})
+        if err or dst is None:
+            return json.dumps({"ok": False, "error": err or "引脚不存在"})
         # 方向: 必须 output -> input
         if src["direction"] != "output" or dst["direction"] != "input":
             return json.dumps({"ok": False,

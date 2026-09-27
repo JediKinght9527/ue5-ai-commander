@@ -13,6 +13,16 @@ from __future__ import annotations
 import math
 
 Vec3 = tuple[float, float, float]
+
+
+def as_vec3(v) -> Vec3:
+    """把任意 3 元序列收敛成 Vec3。
+
+    直接写 tuple(v) 推出来是 tuple[float, ...], 传给标着 Vec3 的参数会报错;
+    这里显式拆三项, 顺带对长度不对的输入给出明确错误而不是静默截断。
+    """
+    x, y, z = v
+    return (float(x), float(y), float(z))
 Rot3 = tuple[float, float, float]  # (pitch, yaw, roll)
 
 
@@ -74,7 +84,12 @@ def dolly_keys(start: Vec3, end: Vec3, look_at: Vec3 | None = None,
     for i, frame in enumerate(_frames(n_keys, fps, seconds)):
         t = i / (n_keys - 1) if n_keys > 1 else 0.0
         tt = _ease_in_out(t) if ease else t
-        loc = tuple(start[j] + (end[j] - start[j]) * tt for j in range(3))
+        # 显式写三项而不是推导式: 推导式推成 tuple[float, ...], 传给 Vec3 会报
+        loc: Vec3 = (
+            start[0] + (end[0] - start[0]) * tt,
+            start[1] + (end[1] - start[1]) * tt,
+            start[2] + (end[2] - start[2]) * tt,
+        )
         rot = (look_at_rotation(loc, look_at) if look_at
                else look_at_rotation(start, end))
         keys.append({"frame": frame, "location": list(loc),
@@ -142,7 +157,7 @@ def _selfcheck() -> None:
     d = math.sqrt(sum(v * v for v in eye))
     assert abs(d - 500) < 1e-6, d
     r2 = look_at_rotation(eye, (0, 0, 0))
-    assert all(abs(a - b) < 1e-9 for a, b in zip(rot, r2))
+    assert all(abs(a - b) < 1e-9 for a, b in zip(rot, r2, strict=True))
     ok += 1
     print("[2/4] orbit_pose ✓")
 
@@ -153,7 +168,7 @@ def _selfcheck() -> None:
     assert k1[0]["frame"] == 0 and k1[-1]["frame"] == 192
     # 转满一圈: 首末位置几乎重合
     assert all(abs(a - b) < 1e-6
-               for a, b in zip(k1[0]["location"], k1[-1]["location"]))
+               for a, b in zip(k1[0]["location"], k1[-1]["location"], strict=True))
     ok += 1
     print("[3/4] orbit_keys 确定性 + 闭环 ✓")
 

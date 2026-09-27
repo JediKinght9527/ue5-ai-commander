@@ -14,14 +14,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
-import os
 import sys
 import traceback
 from typing import Any
 
 from .registry import ToolRegistry, ToolSpec, specs_from_tools
-
 
 # ═══════════════════════════════════════════════════════════
 # MCP protocol constants
@@ -241,7 +240,7 @@ class _ServerState:
     @property
     def code_index(self):
         if self._code_index is None:
-            from .project_index import build_project_index, SAMPLE_PROJECT
+            from .project_index import SAMPLE_PROJECT, build_project_index
 
             self._code_index = build_project_index(SAMPLE_PROJECT)
         return self._code_index
@@ -272,8 +271,7 @@ def _build_registry() -> ToolRegistry:
     # 旧实现是 dict 赋值重复键 —— cine 的描述会覆盖 chat 的，但 dispatch 又按
     # 名字路由回 scene_tools，于是 tools/list 展示的描述和真实行为对不上。
     # 现在以先注册者（scene_tools，actor 列表的所有者）为准，冲突记进 registry.conflicts。
-    from . import blueprint_tools, cine_tools, code_tools, docs_tools
-    from . import pcg_tools, scene_tools
+    from . import blueprint_tools, cine_tools, code_tools, docs_tools, pcg_tools, scene_tools
 
     reg.extend(specs_from_tools("Chat", "chat", scene_tools.TOOLS, _h_chat))
     reg.extend(specs_from_tools("Docs", "docs", docs_tools.TOOLS, _h_docs))
@@ -565,10 +563,8 @@ def _handle_notifications_initialized() -> None:
 def run() -> int:
     """主循环: 读 stdin JSON-RPC → 路由 → 写 stdout。"""
     for _stream in (sys.stdout, sys.stderr):
-        try:
+        with contextlib.suppress(AttributeError, ValueError):
             _stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError):
-            pass
 
     while True:
         request = _read()
@@ -609,15 +605,7 @@ def run() -> int:
 def _selfcheck() -> int:
     """离线自检: MCP 握手 + tools/list + 几个代表性 tools/call。"""
 
-    # 1) initialize
-    req = json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}},
-        }
-    )
+    # 1) initialize（直接调 handler，不走子进程）
     # 模拟 stdin/stdout: 用子进程或直接调 handler
     # 这里直接调 handler 检查结果
     import io
@@ -734,7 +722,7 @@ def _selfcheck() -> int:
         out = buf.getvalue().strip()
         resp = json.loads(out)
         assert "error" in resp, f"未知工具应返回 error: {resp}"
-        print(f"✅ MCP tools/call (未知工具): 正确返回 error")
+        print("✅ MCP tools/call (未知工具): 正确返回 error")
 
         # 8) backend 切换
         buf = io.StringIO()

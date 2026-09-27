@@ -12,7 +12,6 @@ from typing import Any
 
 from . import scene_tools
 
-
 BLOCKOUT_PREFIX = "Cindra_Blockout_"
 BLOCKOUT_FOLDER = "Cindra/Blockouts"
 

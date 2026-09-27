@@ -13,7 +13,6 @@ Cindra 做简洁版 —— mock 端全链路可验证。
 """
 from __future__ import annotations
 
-import json
 from typing import Any
 
 TOOLS: list[dict] = [
@@ -75,7 +74,7 @@ class MockPIESession:
         # 模拟标准 PIE 启动日志
         self.logs = [
             {"seq": self._log_counter, "level": "info",
-             "msg": "LogPlayLevel: PIE: Play in editor start (mode={})".format(play_mode)},
+             "msg": f"LogPlayLevel: PIE: Play in editor start (mode={play_mode})"},
             {"seq": self._log_counter + 1, "level": "info",
              "msg": "LogPlayLevel: PIE: World Initialized"},
             {"seq": self._log_counter + 2, "level": "info",
@@ -103,9 +102,9 @@ class MockPIESession:
         level_map = {"errors": "error", "warnings": "warning", "info": "info"}
         target_level = level_map.get(level, level)
         if target_level != "all":
-            logs = [l for l in logs if l["level"] == target_level]
-        errors = [l for l in logs if l["level"] == "error"]
-        warnings = [l for l in logs if l["level"] == "warning"]
+            logs = [ln for ln in logs if ln["level"] == target_level]
+        errors = [ln for ln in logs if ln["level"] == "error"]
+        warnings = [ln for ln in logs if ln["level"] == "warning"]
         return {"ok": True, "action": "read_pie_log",
                 "running": self.running,
                 "total_lines": len(self.logs),
@@ -253,7 +252,7 @@ def _selfcheck() -> int:
     s.inject_error("Blueprint Runtime Error: Divide by zero in BP_Math")
     r = s.read_log()
     assert r["errors"] == 2
-    print(f"✅ inject_error: 2 条错误被 read_log 准确计数")
+    print("✅ inject_error: 2 条错误被 read_log 准确计数")
 
     # 4) 按级别过滤
     r = s.read_log(level="errors")
@@ -300,7 +299,7 @@ def _selfcheck() -> int:
     print(f"✅ scene→log: {r['total_lines']} 行, {r['warnings']} 警告, {r['errors']} 错误 (模拟真实关卡)")
     s.stop()
 
-    print(f"\nPIE 自检 8/8 通过。")
+    print("\nPIE 自检 8/8 通过。")
     return 0
 
 

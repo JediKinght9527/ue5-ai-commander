@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-
 # ═══════════════════════════════════════════════════════════════
 # 模板库: 常见蓝图逻辑组合
 # ═══════════════════════════════════════════════════════════════
@@ -235,7 +234,7 @@ def inject(graph, template_name: str, params: dict[str, Any] | None = None,
     # 4) 绑定参数: 把 param value 设到对应节点的 pin 上
     # data 引脚的值在 mock 端存为 graph 里节点的 "default" 字段
     bindings = tmpl.get("param_bindings", {})
-    for pname, pinfo in tmpl.get("params", {}).items():
+    for pname, _pinfo in tmpl.get("params", {}).items():
         pin_bindings = bindings.get(pname, [])
         for target_tid, target_pin in pin_bindings:
             node_id = id_map.get(target_tid)
@@ -323,7 +322,7 @@ def _selfcheck() -> int:
     assert len(tlist) >= 5
     print(f"✅ list_templates: {len(tlist)} 个模板")
 
-    print(f"\nT3D 模板自检 6/6 通过。")
+    print("\nT3D 模板自检 6/6 通过。")
     return 0
 
 

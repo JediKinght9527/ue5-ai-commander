@@ -23,8 +23,6 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Any
-
 
 # ═══════════════════════════════════════════════════════════════
 # Tripo3D 客户端 (mock + real 双后端)
@@ -87,8 +85,8 @@ class RealTripoClient(TripoClient):
     def text_to_model(self, prompt: str, output_path: str,
                       model_format: str = "glb") -> dict:
         """调 Tripo REST API, 异步任务 → 轮询 → 下载 GLB。"""
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         base = self.base_url
         headers = {
@@ -274,6 +272,7 @@ def generate_and_bind(tripo_client: TripoClient, importer: AssetImporter,
 def _selfcheck() -> int:
     """离线自检: 用 mock 后端跑通 Tripo→PCG 整链。"""
     import tempfile
+
     from .pcg_model import PCGGraph
 
     tmpdir = tempfile.mkdtemp(prefix="cindra_tripo_test_")

@@ -15,8 +15,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .model_provider import (DEFAULT_ANTHROPIC_MODEL, build_provider,
-                             selected_model)
+from .model_provider import DEFAULT_ANTHROPIC_MODEL, build_provider, selected_model
 
 DEFAULT_MODEL = DEFAULT_ANTHROPIC_MODEL
 
@@ -41,6 +40,9 @@ class CindraAgent:
         self.client = build_provider(client)
         self.verbose = verbose
         self.messages: list[dict] = []
+        # 最近一次 send() 里各工具被调了几次。调试 agent 行为时最常问的就是
+        # "它到底调了什么、调了几次" —— 之前这个 dict 建了却从不写, 统计丢了。
+        self.last_tool_counts: dict[str, int] = {}
 
     def _log(self, *a):
         if self.verbose:
@@ -55,6 +57,7 @@ class CindraAgent:
 
         final_text = ""
         tool_counts: dict[str, int] = {}
+        self.last_tool_counts = tool_counts
         while True:
             self._prune_old_images()
             resp = self.client.create(
@@ -82,6 +85,7 @@ class CindraAgent:
                 if block.type != "tool_use":
                     continue
                 self._log(f"   {self.TOOL_EMOJI}  {block.name}({_fmt_args(block.input)})")
+                tool_counts[block.name] = tool_counts.get(block.name, 0) + 1
                 # pre/post 钩子: 子类用它做验证闭环 (改动前后拍快照对账)。
                 ctx = self._pre_tool(block.name, block.input)
                 result = self.tools_module.dispatch(self.target, block.name, block.input)

@@ -139,9 +139,9 @@ def _build_keys(args: dict) -> list[dict] | dict:
     seconds = float(args.get("seconds", 8.0))
     if preset == "static":
         loc = args.get("start") or args.get("center") or [0, 0, 500]
-        from .camera_math import look_at_rotation
-        rot = list(look_at_rotation(tuple(loc),
-                                    tuple(args.get("look_at", (0, 0, 0)))))
+        from .camera_math import as_vec3, look_at_rotation
+        rot = list(look_at_rotation(as_vec3(loc),
+                                    as_vec3(args.get("look_at", (0, 0, 0)))))
         return [{"frame": 0, "location": list(loc), "rotation": rot},
                 {"frame": int(fps * seconds), "location": list(loc),
                  "rotation": rot}]

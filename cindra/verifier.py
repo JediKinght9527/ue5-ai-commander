@@ -15,8 +15,6 @@
 """
 from __future__ import annotations
 
-from typing import Any
-
 # 位置/旋转/缩放对账的容差。UE 浮点经 JSON 往返会有尾差。
 _EPS = 1e-3
 
@@ -51,7 +49,9 @@ def diff_snapshots(before: dict[str, dict], after: dict[str, dict]) -> dict:
 def _vec_eq(a, b) -> bool:
     if a is None or b is None:
         return a == b
-    return len(a) == len(b) and all(abs(x - y) <= _EPS for x, y in zip(a, b))
+    return len(a) == len(b) and all(
+        abs(x - y) <= _EPS for x, y in zip(a, b, strict=True)
+    )
 
 
 def _vec_close(actual, want) -> bool:
@@ -71,8 +71,10 @@ def hard_check(tool: str, args: dict, result: dict, d: dict,
 
     if tool == "spawn_actor":
         name = result.get("name")
-        if name not in d["added"]:
+        if not name or name not in d["added"]:
             return False, f"声称 spawn 了 {name}, 但快照里没有新增它 (实际新增: {d['added']})"
+        if name not in after:
+            return False, f"快照里找不到 {name} 的状态, 无法对账"
         want = args.get("location")
         if want and not _vec_close(after[name]["location"], want):
             return False, (f"{name} 生成位置不对: 要求 {want}, "
@@ -148,9 +150,12 @@ def _selfcheck() -> int:
     t = MockTransport()
 
     def run(tool, args):
-        before = take_snapshot(t)
+        # 快照拿不到时(cnd_snapshot 失败)统一降级成空 dict —— 之前是把
+        # None 原样传下去, diff_snapshots/len() 会直接 TypeError,
+        # 报出来的错还跟"校验失败"毫无关系。
+        before = take_snapshot(t) or {}
         result = scene_tools.dispatch(t, tool, args)
-        after = take_snapshot(t)
+        after = take_snapshot(t) or {}
         ok, why = verify(tool, args, result, before, after)
         return result, ok, why, after
 
@@ -177,6 +182,7 @@ def _selfcheck() -> int:
     print(f"✅ move 终态对账生效: {why}")
 
     # 4) set_transform 设相同值 (合法 no-op) → 不能误杀
+    assert before is not None and name in before, "拿不到 before 快照, 无法继续"
     cur = before[name]["location"]
     r2, ok, why, _ = run("set_transform", {"name": name, "location": cur})
     assert ok, f"no-op set_transform 被误杀: {why}"

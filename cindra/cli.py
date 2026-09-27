@@ -29,16 +29,15 @@ CindraPCG (自然语言操控 UE5.7 PCG 程序化生成, 🆕):
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 from pathlib import Path
 
 # Windows consoles are often not UTF-8. Reconfigure so logs from the UE panel
 # survive redirection into Saved/Cindra/*.out.txt.
 for _stream in (sys.stdout, sys.stderr):
-    try:
+    with contextlib.suppress(AttributeError, ValueError):
         _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError):
-        pass
 
 
 def build_transport(backend: str):
@@ -194,7 +193,7 @@ def run_code(args) -> int:
         return config_status
 
     from .code_agent import CindraCodeAgent
-    from .project_index import build_project_index, SAMPLE_PROJECT
+    from .project_index import SAMPLE_PROJECT, build_project_index
     root = args.project or SAMPLE_PROJECT
     try:
         index = build_project_index(root)
@@ -221,8 +220,7 @@ def run_blueprint(args) -> int:
         return config_status
 
     from .blueprint_agent import CindraBlueprintAgent
-    from .blueprint_transport import (MockBlueprintTransport,
-                                      UEBlueprintTransport)
+    from .blueprint_transport import MockBlueprintTransport, UEBlueprintTransport
     transport = (UEBlueprintTransport() if args.backend == "ue"
                  else MockBlueprintTransport())
     agent = CindraBlueprintAgent(transport, verbose=not args.quiet)
@@ -238,10 +236,10 @@ def run_blueprint(args) -> int:
 
 
 def run_pcg(args) -> int:
-    from .pcg_agent import CindraPCGAgent
-    from .pcg_model import PCGGraph
-    from .transport import MockTransport
     import json as _json
+
+    from .pcg_agent import CindraPCGAgent
+    from .transport import MockTransport
 
     agent = CindraPCGAgent(verbose=not args.quiet)
 
@@ -277,7 +275,10 @@ def run_pcg(args) -> int:
         agent.messages.clear()
         agent.pcg_graph.clear()
 
-    return _repl(agent, banner, {"/graph": lambda: print("\n" + agent.pcg_graph.list_graph()),
+    return _repl(agent, banner, {# 之前这里是 "\n" + list_graph(), 而 list_graph() 返回 dict ——
+# /graph 一敲就 TypeError。list_graph 是给 agent/MCP 用的结构化数据,
+# 人看的应该用 render_stats()。
+                                 "/graph": lambda: print("\n" + agent.pcg_graph.render_stats()),
                                  "/result": show_result, "/reset": reset},
                  once=args.once, after_send=show_result)
 

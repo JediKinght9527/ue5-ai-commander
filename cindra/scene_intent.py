@@ -11,7 +11,6 @@ from typing import Any
 
 from . import scene_tools
 
-
 _CN_NUMBERS = {
     "一": 1,
     "二": 2,

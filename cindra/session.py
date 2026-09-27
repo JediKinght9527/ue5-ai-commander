@@ -106,8 +106,10 @@ def _selfcheck() -> None:
             self.scene = MockScene()
 
     ok = 0
-    with tempfile.TemporaryDirectory() as td:
-        with um.patch.object(Path, "home", return_value=Path(td)):
+    # 嵌套 with 有意保留: 内层还包着 try/finally 做 SESSIONS_DIR 状态恢复,
+    # 合成一行反而看不出恢复边界
+    with tempfile.TemporaryDirectory() as td:  # noqa: SIM117
+        with um.patch.object(Path, "home", return_value=Path(td)):  # noqa: SIM117
             # 猴补 SESSIONS_DIR 依赖的 home —— 模块级常量已求值, 直接补常量
             import cindra.session as sess
             old = sess.SESSIONS_DIR

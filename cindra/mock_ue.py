@@ -7,15 +7,14 @@
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 from typing import Any
 
 for _stream in (sys.stdout, sys.stderr):
-    try:
+    with contextlib.suppress(AttributeError, ValueError):
         _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError):
-        pass
 
 
 class MockScene:
@@ -312,8 +311,9 @@ class MockScene:
             if location is not None:
                 cam["location"] = [float(x) for x in location]
             if look_at is not None:
+                from .camera_math import as_vec3
                 cam["rotation"] = list(look_at_rotation(
-                    tuple(cam["location"]), tuple(look_at)))
+                    as_vec3(cam["location"]), as_vec3(look_at)))
             elif rotation is not None:
                 cam["rotation"] = [float(x) for x in rotation]
         if fov is not None:
@@ -392,6 +392,7 @@ def _selfcheck() -> int:
     跑: python3 -m cindra.mock_ue
     """
     import json as _json
+
     from . import scene_tools
 
     scene = MockScene()

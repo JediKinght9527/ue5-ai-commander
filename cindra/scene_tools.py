@@ -263,7 +263,7 @@ def _arrange(transport, style, intensity, prefix):
         # 全局重排成整齐网格 (按名字排序保证确定)
         ordered = sorted(actors, key=lambda a: a["name"])
         for pos, a in zip(_grid_positions(len(ordered), 200, None,
-                                          [center[0], center[1], 0]), ordered):
+                                          [center[0], center[1], 0]), ordered, strict=True):
             r = transport.call("cnd_set_transform", name=a["name"],
                                location=pos, rotation=[0, 0, 0], scale=[1, 1, 1])
             if r.get("ok"):

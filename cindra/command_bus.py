@@ -7,16 +7,15 @@ calls this module. This module is the stable command boundary.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 for _stream in (sys.stdout, sys.stderr):
-    try:
+    with contextlib.suppress(AttributeError, ValueError):
         _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError):
-        pass
 
 
 DEFAULT_CLAUDE_TEMPLATE = "claude -p {prompt:q}"

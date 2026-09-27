@@ -583,6 +583,7 @@ class UEPCGTransport:
     def call(self, func: str, **kwargs) -> dict:
         import json as _json
         self._ensure()
+        assert self._conn is not None  # _ensure 连不上会 raise, 到这里必然有
         try:
             if not self._bootstrapped:
                 self._conn.run_command(
