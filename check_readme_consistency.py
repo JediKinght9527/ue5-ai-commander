@@ -10,7 +10,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path("/tmp/ue5")
+ROOT = Path(__file__).resolve().parent  # 仓库根目录, 不能硬编码本地路径
 sys.path.insert(0, str(ROOT))
 
 from cindra import mcp_server as m  # noqa: E402
