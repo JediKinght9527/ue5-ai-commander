@@ -68,7 +68,7 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: Ruff
-        run: uv run --frozen ruff check cindra/
+        run: uv run --frozen ruff check cindra/ run_selfchecks.py check_readme_consistency.py
 
       # 刻意不跑 `ruff format --check`: 全量格式化会重排 45 个文件,
       # 混进功能修复里 diff 就没法 review 了。等功能稳定后单独一个 commit 做。

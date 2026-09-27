@@ -67,6 +67,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+# 顶层脚本里的 import 供人阅读/IDE 跳转, 不强求被用到
+"check_ue.py" = ["F401"]
 
 [tool.pyright]
 include = ["cindra"]

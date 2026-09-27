@@ -252,8 +252,10 @@ def run_pcg(args) -> int:
                 ops = _json.loads(args.context_scene)
                 for op in ops:
                     scene.cnd_spawn(**op)
-            except Exception:
-                pass
+            except Exception as exc:
+                # 不静默吞: --context-scene 写错 JSON 时用户需要知道,
+                # 否则表现是"传了场景但 agent 看不到"
+                print(f"context-scene 解析失败, 已忽略: {exc}", file=sys.stderr)
         ctx = {"scene_actors": [
             {"name": a["name"], "location": a["location"],
              "rotation": a.get("rotation", [0, 0, 0]),
