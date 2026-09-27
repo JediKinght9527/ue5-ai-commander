@@ -1,7 +1,17 @@
 ## Unreleased
 
+## 0.3.1 (2026-09-27)
+
+补丁版：修一个对外可见的版本号错误，顺带把文档一致性校验扩到全部文档、
+统一代码格式并纳入 CI 门禁。
+
+### Fixed
+
+- **MCP 客户端收到的版本号是错的**：`SERVER_VERSION` 硬编码 `"1.0.0"`，而包版本是 `0.3.0` —— 客户端 `initialize` 时拿到的是错版本号，和 tag / CHANGELOG 全对不上。改为从已安装的包元数据读取（`importlib.metadata`），单一事实源；自检加断言防止再退化。
+
 ### Changed
 
+- 文档一致性校验从只覆盖两个 README 扩到 5 个文档，规则改为"声明了某个数字就必须对得上，没声明不算错"。修掉 `docs/marketing-post.md` 里漂着的 6 处旧数字。
 - 统一代码格式（`ruff format`，48 个文件）。**无任何逻辑改动** —— 用
   `ast.dump` 逐文件比对确认语法树完全一致。格式化单独成一个 commit，
   避免与功能修复混在一起导致 diff 无法 review。CI 纳入 `ruff format --check` 门禁。
