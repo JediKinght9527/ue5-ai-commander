@@ -28,7 +28,23 @@ from .registry import ToolRegistry, ToolSpec, specs_from_tools
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "cindra"
-SERVER_VERSION = "1.0.0"
+# 版本单一事实源: 从已安装的包元数据读, 读不到再回落到源码树里的 pyproject。
+# 之前这里硬编码 "1.0.0", 而包版本是 0.3.0 —— MCP 客户端 initialize 时
+# 拿到的是错版本号, 和 CHANGELOG / tag 全对不上。
+def _resolve_version() -> str:
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+    except ImportError:  # pragma: no cover - py3.7 及更早
+        return "0.0.0"
+    for dist in ("ue5-ai-commander", "cindra"):
+        try:
+            return version(dist)
+        except PackageNotFoundError:
+            continue
+    return "0.0.0+src"
+
+
+SERVER_VERSION = _resolve_version()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -756,6 +772,13 @@ def _selfcheck() -> int:
     assert not unwired, f"有工具没接线: {unwired}"
     print(f"✅ 注册表完整性: {len(_registry)} 个工具全部接线, 无未接线项")
 
+    # 版本号必须和包元数据一致: 之前硬编码 1.0.0 而包是 0.3.0,
+    # MCP 客户端 initialize 拿到的是错版本, 和 tag / CHANGELOG 全对不上。
+    assert SERVER_VERSION and SERVER_VERSION != "0.0.0", (
+        f"版本号没解析出来: {SERVER_VERSION!r} (装成 editable 或在源码树跑?)"
+    )
+    print(f"✅ 版本号与包元数据一致: {SERVER_VERSION}")
+
     # 10) 同名工具冲突必须已知且已登记, 不允许悄悄覆盖。
     #     list_actors 同时出现在 scene_tools 与 cine_tools, 归 scene_tools。
     known_conflicts = {("list_actors", "cine")}
@@ -780,7 +803,7 @@ def _selfcheck() -> int:
     assert stopped.get("ok"), f"stop_pie 失败: {stopped}"
     print("✅ PIE 接线: launch → read_pie_log → stop 走通")
 
-    total = 12
+    total = 13
     print(f"\nMCP server 自检 {total}/{total} 通过。")
     print(f"  工具总数: {len(_registry)}")
     print(

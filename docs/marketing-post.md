@@ -24,11 +24,11 @@ git clone https://github.com/JediKinght9527/ue5-ai-commander.git
 cd the-repo && pip install -r requirements.txt
 python -m the-repo.demo  # generates an oak forest, no UE, no API key
 
-It exposes 43 MCP tools across 9 domains — Claude Code/Cursor talk to it
+It exposes 48 MCP tools across 10 domains — Claude Code/Cursor talk to it
 directly. When you do have UE open on Windows with Python Remote Execution,
 the same MCP tools drive the real engine. A snapshot-diff verifier catches
 "tool says ok but nothing changed" failures (zero-token hard check, not LLM
-vision). 103 offline assertions pass on every push.
+vision). 122 offline assertions pass on every push.
 
 Built this because UE 5.7's built-in AI assistant answers questions — it
 doesn't do things. I wanted something that acts, looks at the result, and
@@ -69,12 +69,12 @@ The mock backend is what I'm most proud of. Every module has an in-memory
 simulation. You can run the whole pipeline on your Mac without UE installed.
 pip install, python -m cindra.demo, done — a 141-tree oak forest appears.
 
-It works as an MCP server (43 tools, 9 domains) for Claude Code/Cursor.
+It works as an MCP server (48 tools, 10 domains) for Claude Code/Cursor.
 On Windows with UE 5.7 and Remote Execution on, it drives the real engine.
 Same code, same tools, just flip the transport.
 
 Repo: https://github.com/JediKinght9527/ue5-ai-commander
-103 self-checks pass on every commit (GitHub Actions).
+122 self-checks pass on every commit (GitHub Actions).
 
 Would love feedback, especially from anyone who's tried the other UE MCP
 tools and knows what's missing.
@@ -104,7 +104,7 @@ cindra：把 T3D 模板注入到蓝图里，节点和线全部建好，编译，
 - 验证闭环：每次操作前后拍 scene 快照 diff，工具返回 ok 但引擎没动的情况会被抓出来（零 token 硬校验）
 - 双后端透明：mock 全绿 → 切 transport → 同一套代码在真引擎里跑
 
-43 个 MCP 工具，Claude Code 里直接对话。
+48 个 MCP 工具，Claude Code 里直接对话。
 
 GitHub: https://github.com/JediKinght9527/ue5-ai-commander
 60 秒上手: pip install 后 python -m cindra.demo 生成一片橡树林
@@ -132,7 +132,7 @@ UE 5.7 内置 AI 助手，能回答问题，不能动手。
 亮点：
 1. 不用开 UE 就能试 —— 全部模块有 mock 后端，pip install 就跑
 2. 操作验证 — 每次改完后前后拍快照，自动对账。工具说 ok 但引擎没动的情况会被抓出来
-3. 43 个 MCP 工具，Claude Code / Cursor 直接对话
+3. 48 个 MCP 工具，Claude Code / Cursor 直接对话
 4. Tripo3D 桥接：文字描述 → 生成 3D 模型 → 导入 UE → PCG 在场景里批量放置
 
 GitHub: https://github.com/JediKinght9527/ue5-ai-commander

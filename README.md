@@ -125,7 +125,7 @@ PIE 自动化闭环：`launch_pie` → `read_pie_log` → 有错就改 → 重�
 
 ```bash
 uv run --frozen python run_selfchecks.py            # 17 个模块 / 106 条断言
-uv run --frozen python run_selfchecks.py mcp_server # MCP 层 / 12 条断言
+uv run --frozen python run_selfchecks.py mcp_server # MCP 层 / 13 条断言
 uv run --frozen python -m cindra.demo --check        # demo 可复现 / 3 条断言
 ```
 
@@ -149,7 +149,7 @@ python -m cindra.blueprint_model     # 5/5
 python -m cindra.t3d_templates       # 6/6
 python -m cindra.pie_tools           # 8/8
 python -m cindra.registry            # 9/9
-python -m cindra.mcp_server --selfcheck  # 12/12
+python -m cindra.mcp_server --selfcheck  # 13/13
 ```
 
 CI 在 **ubuntu + macos × py3.11 + py3.12** 四组矩阵上跑全部断言，另加 `ruff` + `pyright` + wheel 构建检查。

@@ -1,7 +1,8 @@
-"""校验 README 里的数字与代码实际一致 —— 防止文档再次漂移。
+"""校验文档里的数字与代码实际一致 —— 防止文档再次漂移。
 
-这是本仓库吃过亏的地方: 之前 README 写 43 个工具 / 15 个模块,
-实际是 45 / 17, 三个数字互相矛盾。所以把断言做成可执行的。
+这是本仓库吃过亏的地方: 之前 README 写 43 个工具 / 清单求和 49 / 实际 45,
+三个数字互相矛盾。所以把断言做成可执行的, 且覆盖全部文档而不只是 README ——
+后来 marketing-post.md 里也漂移出同样的旧数字。
 """
 
 import re
@@ -58,27 +59,46 @@ a_mod, t_mod, a_mcp, t_mcp = counts()
 
 n_py = len(list((ROOT / "cindra").glob("*.py")))
 
-for readme in ("README.md", "README.en.md"):
-    text = (ROOT / readme).read_text()
-    check(
-        f"{readme}: 工具数 {n_tools}",
-        f"**{n_tools} 个 MCP 工具**" in text or f"**{n_tools} MCP tools**" in text,
-    )
-    check(
-        f"{readme}: 无残留的 43/45 旧数字",
-        "43 个 MCP 工具" not in text and "43 MCP tools" not in text,
-    )
-    check(
-        f"{readme}: 模块断言数 {a_mod}/{t_mod}",
-        f"{a_mod} 条断言" in text or f"{a_mod} assertions" in text,
-    )
-    check(
-        f"{readme}: MCP 断言数 {a_mcp}/{t_mcp}",
-        f"{a_mcp} 条断言" in text or f"{a_mcp} assertions" in text,
-    )
-    check(
-        f"{readme}: 声明的模块数 {n_py} 正确", f"{n_py} 个模块" in text or f"{n_py} modules" in text
-    )
+# 覆盖所有对读者宣称数字的文档。CHANGELOG 记的是历史, 不参与一致性校验。
+DOCS = ["README.md", "README.en.md", "COMMAND_RUNNERS.md",
+        "WINDOWS_SETUP.md", "docs/marketing-post.md"]
+
+# 规则: 文档"声明了某个数字"就必须是对的; 没声明的不算错。
+# COMMAND_RUNNERS / WINDOWS_SETUP 这类专题文档本来就不必复述总数,
+# 硬要求它们写全反而会逼出一堆无意义的重复数字。
+STALE = {
+    "tools": ("43 个 MCP 工具", "43 MCP tools", "43 tools", "45 个 MCP 工具"),
+    "modules": ("15 个模块", "15 modules"),
+    "assertions": ("103 条断言", "103 offline assertions", "103 self-checks"),
+    "domains": ("9 domains", "9 个域"),
+}
+
+for doc in DOCS:
+    text = (ROOT / doc).read_text()
+    # 陈旧数字: 任何文档里都不许出现
+    for _kind, olds in STALE.items():
+        for old in olds:
+            check(f"{doc}: 无陈旧的 {old!r}", old not in text)
+
+    # 声明了就必须对得上
+    if "MCP 工具" in text or "MCP tools" in text or "tools across" in text:
+        nums = {int(x) for x in re.findall(r"(\d+) (?:个 )?MCP 工具|(\d+) MCP tools|(\d+) tools", text) for x in x if x}
+        check(f"{doc}: 提到的工具数 {sorted(nums)} 正确", not nums or nums == {n_tools})
+    if "条断言" in text or "offline assertions" in text or "self-checks" in text:
+        nums = {int(x) for x in re.findall(r"(\d+) 条断言|(\d+) offline assertions|(\d+) self-checks", text) for x in x if x}
+        demo_a, demo_t = 3, 3  # cindra.demo --check 的 3 条
+        legal_a = {a_mod, t_mod, a_mcp, t_mcp, demo_t, a_mod + t_mcp,
+                   a_mod + t_mcp + demo_t, t_mod + t_mcp,
+                   a_mod + a_mcp + demo_t, t_mod + t_mcp + demo_t}
+        check(f"{doc}: 提到的断言数 {sorted(nums)} 正确", not nums or nums <= legal_a)
+    if "个模块" in text or "modules" in text:
+        nums = {int(x) for x in re.findall(r"(\d+) 个模块|(\d+) modules", text) for x in x if x}
+        from run_selfchecks import MODULES  # 自检覆盖的模块清单
+        legal_m = {n_py, len(MODULES)}  # py 文件数 / 自检模块数
+        check(f"{doc}: 提到的模块数 {sorted(nums)} 正确", not nums or nums <= legal_m)
+    if "domains" in text or "个域" in text:
+        nums = {int(x) for x in re.findall(r"(\d+) domains|(\d+) 个域", text) for x in x if x}
+        check(f"{doc}: 提到的域数 {sorted(nums)} 正确", not nums or nums == {len(per_module)})
 
 # 工具清单求和必须等于注册数
 zh = (ROOT / "README.md").read_text()

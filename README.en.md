@@ -125,7 +125,7 @@ No UE, no API key, works anywhere:
 
 ```bash
 uv run --frozen python run_selfchecks.py            # 17 modules / 106 assertions
-uv run --frozen python run_selfchecks.py mcp_server # MCP layer / 12 assertions
+uv run --frozen python run_selfchecks.py mcp_server # MCP layer / 13 assertions
 uv run --frozen python -m cindra.demo --check        # demo reproducibility / 3 assertions
 ```
 
@@ -136,7 +136,7 @@ python -m cindra.docs_index          # 10/10
 python -m cindra.project_index       # 5/5
 python -m cindra.mock_ue             # 6/6
 python -m cindra.verifier            # 9/9
-python -m cindra.pcg_model           # 12/12
+python -m cindra.pcg_model           # 13/13
 python -m cindra.tripo_pcg_bridge    # 6/6
 python -m cindra.session             # 3/3
 python -m cindra.asset_index         # 8/8
@@ -149,7 +149,7 @@ python -m cindra.blueprint_model     # 5/5
 python -m cindra.t3d_templates       # 6/6
 python -m cindra.pie_tools           # 8/8
 python -m cindra.registry            # 9/9
-python -m cindra.mcp_server --selfcheck  # 12/12
+python -m cindra.mcp_server --selfcheck  # 13/13
 ```
 
 CI runs every assertion on **ubuntu + macos × py3.11 + py3.12**, plus `ruff`, `pyright`, and a wheel build check.
