@@ -13,14 +13,23 @@
 
 自检: python3 -m cindra.verifier  (纯 mock, 无需 UE / API key)
 """
+
 from __future__ import annotations
 
 # 位置/旋转/缩放对账的容差。UE 浮点经 JSON 往返会有尾差。
 _EPS = 1e-3
 
 # 会改场景的工具 → 需要前后快照 + 硬校验。查询类 (list/inspect) 不在内。
-MUTATING_TOOLS = {"spawn_actor", "spawn_grid", "delete_actor", "move_actor",
-                  "set_transform", "arrange_scene", "clear_scene", "undo"}
+MUTATING_TOOLS = {
+    "spawn_actor",
+    "spawn_grid",
+    "delete_actor",
+    "move_actor",
+    "set_transform",
+    "arrange_scene",
+    "clear_scene",
+    "undo",
+}
 
 
 def take_snapshot(transport) -> dict[str, dict] | None:
@@ -39,8 +48,11 @@ def diff_snapshots(before: dict[str, dict], after: dict[str, dict]) -> dict:
     for n in before:
         if n not in after:
             continue
-        fields = [f for f in ("location", "rotation", "scale")
-                  if not _vec_eq(before[n].get(f), after[n].get(f))]
+        fields = [
+            f
+            for f in ("location", "rotation", "scale")
+            if not _vec_eq(before[n].get(f), after[n].get(f))
+        ]
         if fields:
             changed[n] = fields
     return {"added": added, "removed": removed, "changed": changed}
@@ -49,9 +61,7 @@ def diff_snapshots(before: dict[str, dict], after: dict[str, dict]) -> dict:
 def _vec_eq(a, b) -> bool:
     if a is None or b is None:
         return a == b
-    return len(a) == len(b) and all(
-        abs(x - y) <= _EPS for x, y in zip(a, b, strict=True)
-    )
+    return len(a) == len(b) and all(abs(x - y) <= _EPS for x, y in zip(a, b, strict=True))
 
 
 def _vec_close(actual, want) -> bool:
@@ -59,8 +69,9 @@ def _vec_close(actual, want) -> bool:
     return _vec_eq([float(x) for x in actual], [float(x) for x in want])
 
 
-def hard_check(tool: str, args: dict, result: dict, d: dict,
-               after: dict[str, dict]) -> tuple[bool, str]:
+def hard_check(
+    tool: str, args: dict, result: dict, d: dict, after: dict[str, dict]
+) -> tuple[bool, str]:
     """按工具声称的效果和实际 diff 对账。返回 (是否通过, 原因)。
 
     原则: 宁可放过、不可误杀 —— 判据只取"该工具必然产生的最小效果",
@@ -77,8 +88,7 @@ def hard_check(tool: str, args: dict, result: dict, d: dict,
             return False, f"快照里找不到 {name} 的状态, 无法对账"
         want = args.get("location")
         if want and not _vec_close(after[name]["location"], want):
-            return False, (f"{name} 生成位置不对: 要求 {want}, "
-                           f"实际 {after[name]['location']}")
+            return False, (f"{name} 生成位置不对: 要求 {want}, 实际 {after[name]['location']}")
         return True, f"新增 {name} 已确认"
 
     if tool == "spawn_grid":
@@ -101,8 +111,7 @@ def hard_check(tool: str, args: dict, result: dict, d: dict,
         for field in ("location", "rotation", "scale"):
             want = args.get(field)
             if want is not None and not _vec_close(after[name][field], want):
-                return False, (f"{name}.{field} 终态不对: 要求 {want}, "
-                               f"实际 {after[name][field]}")
+                return False, (f"{name}.{field} 终态不对: 要求 {want}, 实际 {after[name][field]}")
         return True, f"{name} 终态与要求一致"
 
     if tool == "arrange_scene":
@@ -123,15 +132,22 @@ def hard_check(tool: str, args: dict, result: dict, d: dict,
         # 真 UE 的 Transaction.Undo 无返回值, 这一步是它唯一的成效检测。
         moved = len(d["changed"]) + len(d["added"]) + len(d["removed"])
         if moved == 0:
-            return False, "undo 后场景毫无变化 —— 撤销可能没生效 (真UE已知坑: 改前没 actor.modify())"
+            return (
+                False,
+                "undo 后场景毫无变化 —— 撤销可能没生效 (真UE已知坑: 改前没 actor.modify())",
+            )
         return True, f"undo 生效: {moved} 处回退"
 
     return True, "非改动类工具, 跳过对账"
 
 
-def verify(tool: str, args: dict, result: dict,
-           before: dict[str, dict] | None,
-           after: dict[str, dict] | None) -> tuple[bool, str]:
+def verify(
+    tool: str,
+    args: dict,
+    result: dict,
+    before: dict[str, dict] | None,
+    after: dict[str, dict] | None,
+) -> tuple[bool, str]:
     """一步到位: diff + hard_check。快照拍失败时降级放行 (不阻塞 agent)。"""
     if tool not in MUTATING_TOOLS:
         return True, "非改动类工具"
@@ -141,6 +157,7 @@ def verify(tool: str, args: dict, result: dict,
 
 
 # ---------------------------------------------------------------- selfcheck
+
 
 def _selfcheck() -> int:
     """离线自检: 诚实操作要通过, 撒谎操作必须被抓。跑: python3 -m cindra.verifier"""
@@ -160,8 +177,7 @@ def _selfcheck() -> int:
         return result, ok, why, after
 
     # 1) 诚实 spawn → 通过
-    r, ok, why, after = run("spawn_actor",
-                            {"actor_type": "cube", "location": [100, 200, 0]})
+    r, ok, why, after = run("spawn_actor", {"actor_type": "cube", "location": [100, 200, 0]})
     assert ok, f"诚实 spawn 被误杀: {why}"
     print(f"✅ spawn 硬校验通过: {why}")
 
@@ -176,8 +192,9 @@ def _selfcheck() -> int:
     name = r["name"]
     real_move = {"ok": True, "action": "move", "name": name}
     before = take_snapshot(t)
-    ok, why = verify("move_actor", {"name": name, "location": [999, 999, 0]},
-                     real_move, before, before)  # 场景没动
+    ok, why = verify(
+        "move_actor", {"name": name, "location": [999, 999, 0]}, real_move, before, before
+    )  # 场景没动
     assert not ok, "move 终态不符没被抓住!"
     print(f"✅ move 终态对账生效: {why}")
 

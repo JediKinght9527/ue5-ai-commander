@@ -80,9 +80,7 @@ def main(argv: list[str]) -> int:
             total_pass += passed
             total_all += total
             print(f"  {module:<22} ok    {passed}/{total}")
-    print(
-        f"\n{total_pass}/{total_all} assertions across {len(targets) - len(failed)} modules"
-    )
+    print(f"\n{total_pass}/{total_all} assertions across {len(targets) - len(failed)} modules")
     if failed:
         print("failed: " + ", ".join(failed))
         return 1

@@ -7,6 +7,7 @@ v2: agent 长眼睛了 —— look_at_scene 返回真实截图 (mock 渲染 / �
 提示词要求"造完必看、看完必评、不对就修"; 截图次数在代码层封顶 (base_agent
 的 PER_SEND_TOOL_LIMITS), 不靠提示词自觉。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -50,10 +51,13 @@ class CindraChatAgent(CindraAgent):
     # 视觉闭环封顶: 单轮最多 5 张截图 (提示词说 3 轮, 代码留点余量)
     PER_SEND_TOOL_LIMITS = {"look_at_scene": 5}
 
-    def __init__(self, transport: Transport,
-                 client: Any | None = None,
-                 verbose: bool = True,
-                 asset_index: Any | None = None) -> None:
+    def __init__(
+        self,
+        transport: Transport,
+        client: Any | None = None,
+        verbose: bool = True,
+        asset_index: Any | None = None,
+    ) -> None:
         ctx = ChatContext(transport=transport, asset_index=asset_index)
         super().__init__(ctx, scene_tools, client=client, verbose=verbose)
         self.transport = transport  # 供 CLI/session 直接访问
@@ -73,9 +77,12 @@ class CindraChatAgent(CindraAgent):
         if not ok:
             # 校验覆盖工具自报的 ok —— 失败证据回喂, 让 agent 自己决定
             # 重试/换方案/undo, 而不是在这里写死修正策略。
-            return {**result, "ok": False,
-                    "error": f"VERIFY FAILED: {why}",
-                    "verify": {"ok": False, "why": why}}
+            return {
+                **result,
+                "ok": False,
+                "error": f"VERIFY FAILED: {why}",
+                "verify": {"ok": False, "why": why},
+            }
         result["verify"] = {"ok": True, "why": why}
         return result
 
@@ -90,5 +97,4 @@ class CindraChatAgent(CindraAgent):
             return "截图已回喂" if r.get("_image_path") else "俯视图已回喂"
         if r.get("action") == "spawn_grid":
             return f"生成 {r.get('count')} 个 {r.get('type')}{tick}"
-        return _json({k: v for k, v in r.items()
-                      if k not in ("ok", "verify")}) + tick
+        return _json({k: v for k, v in r.items() if k not in ("ok", "verify")}) + tick

@@ -4,6 +4,7 @@ UE should not know whether a request is handled by Cindra's built-in agent,
 Claude Code, Codex, or another command-line tool. It writes a prompt file and
 calls this module. This module is the stable command boundary.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,21 +24,20 @@ DEFAULT_CODEX_TEMPLATE = "codex exec {prompt:q}"
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Cindra command bus for UE/editor integrations"
+    parser = argparse.ArgumentParser(description="Cindra command bus for UE/editor integrations")
+    parser.add_argument(
+        "--runner",
+        default=os.environ.get("CINDRA_RUNNER", "cindra"),
+        choices=["cindra", "claude", "codex", "custom"],
+        help="command runner to use",
     )
-    parser.add_argument("--runner", default=os.environ.get("CINDRA_RUNNER", "cindra"),
-                        choices=["cindra", "claude", "codex", "custom"],
-                        help="command runner to use")
-    parser.add_argument("--mode", default="chat",
-                        choices=["chat", "docs", "code", "blueprint"])
+    parser.add_argument("--mode", default="chat", choices=["chat", "docs", "code", "blueprint"])
     parser.add_argument("--backend", default="ue", choices=["mock", "ue"])
     parser.add_argument("--index", default="lexical", choices=["lexical", "embed"])
     parser.add_argument("--project", default="")
     parser.add_argument("--prompt-file", required=True)
     parser.add_argument("--cwd", default=os.environ.get("CINDRA_PROJECT_ROOT") or os.getcwd())
-    parser.add_argument("--dry-run", action="store_true",
-                        help="print the command that would run")
+    parser.add_argument("--dry-run", action="store_true", help="print the command that would run")
     args = parser.parse_args(argv)
 
     prompt_path = Path(args.prompt_file)

@@ -15,6 +15,7 @@ CamelCase/下划线拆词 (SM_Crate_A -> "sm crate a"), 连同 class/tags/路径
 
 自检: python3 -m cindra.asset_index (8/8 top-1 回归)
 """
+
 from __future__ import annotations
 
 import json
@@ -23,8 +24,7 @@ import re
 
 from .docs_index import LexicalIndex
 
-MOCK_MANIFEST = os.path.join(os.path.dirname(__file__), "mock_assets",
-                             "manifest.json")
+MOCK_MANIFEST = os.path.join(os.path.dirname(__file__), "mock_assets", "manifest.json")
 
 # 工具层的 class_filter 值 -> manifest 里的资产 class
 _CLASS_FILTERS = {
@@ -54,18 +54,18 @@ class AssetIndex:
         self.by_path = {a["path"]: a for a in self.assets}
         chunks = []
         for a in self.assets:
-            text = " ".join([
-                _split_words(a["name"]),
-                _split_words(a.get("class", "")),
-                " ".join(a.get("tags", [])),
-                _split_words(a["path"]),
-            ])
-            chunks.append({"id": a["path"], "title": a["name"],
-                           "file": a["path"], "text": text})
+            text = " ".join(
+                [
+                    _split_words(a["name"]),
+                    _split_words(a.get("class", "")),
+                    " ".join(a.get("tags", [])),
+                    _split_words(a["path"]),
+                ]
+            )
+            chunks.append({"id": a["path"], "title": a["name"], "file": a["path"], "text": text})
         self._index = LexicalIndex(chunks) if chunks else None
 
-    def search(self, query: str, k: int = 8,
-               class_filter: str | None = None) -> list[dict]:
+    def search(self, query: str, k: int = 8, class_filter: str | None = None) -> list[dict]:
         if self._index is None:
             return []
         wanted = _CLASS_FILTERS.get(class_filter or "")
@@ -77,10 +77,15 @@ class AssetIndex:
                 continue
             if wanted and a.get("class") not in wanted:
                 continue
-            out.append({"path": a["path"], "name": a["name"],
-                        "class": a.get("class", ""),
-                        "tags": a.get("tags", []),
-                        "score": h["score"]})
+            out.append(
+                {
+                    "path": a["path"],
+                    "name": a["name"],
+                    "class": a.get("class", ""),
+                    "tags": a.get("tags", []),
+                    "score": h["score"],
+                }
+            )
             if len(out) >= k:
                 break
         return out
@@ -101,7 +106,11 @@ _SELFCHECK = [
     ("large rock 大石头", None, "/Game/Environment/SM_Rock_Large.SM_Rock_Large"),
     ("dead spooky tree", None, "/Game/Environment/SM_Tree_Dead.SM_Tree_Dead"),
     ("campfire", None, "/Game/Props/SM_Campfire.SM_Campfire"),
-    ("flickering horror lamp", "blueprint", "/Game/Blueprints/BP_Flickering_Lamp.BP_Flickering_Lamp"),
+    (
+        "flickering horror lamp",
+        "blueprint",
+        "/Game/Blueprints/BP_Flickering_Lamp.BP_Flickering_Lamp",
+    ),
     ("forest scatter pcg", "pcg_graph", "/Game/PCG/PCG_Forest_Scatter.PCG_Forest_Scatter"),
     ("stone wall", "static_mesh", "/Game/Architecture/SM_Wall_Stone_4m.SM_Wall_Stone_4m"),
 ]

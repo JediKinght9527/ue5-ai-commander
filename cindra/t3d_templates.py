@@ -11,6 +11,7 @@ agent 不关心底层是 mock 翻译还是 T3D 注入。
 
 自检: python3 -m cindra.t3d_templates
 """
+
 from __future__ import annotations
 
 import json
@@ -58,7 +59,6 @@ TEMPLATES: dict[str, dict] = {
             "in_string": [("print", "InString")],
         },
     },
-
     # ── 事件 → 延迟 → 打印 ──
     "delayed_print": {
         "description": "BeginPlay N 秒后在屏幕上打印文字。",
@@ -80,7 +80,6 @@ TEMPLATES: dict[str, dict] = {
             "in_string": [("print", "InString")],
         },
     },
-
     # ── 分支打印 ──
     "branch_print": {
         "description": "事件触发时根据条件分支打印不同文字 (True→文字A, False→文字B)。",
@@ -106,7 +105,6 @@ TEMPLATES: dict[str, dict] = {
             "false_text": [("print_false", "InString")],
         },
     },
-
     # ── 比较 → 分支 ──
     "compare_branch_print": {
         "description": "两个浮点数比较大小，结果决定打印哪句话。A > B 打印前者文字，否则打印后者。",
@@ -126,8 +124,16 @@ TEMPLATES: dict[str, dict] = {
         "params": {
             "value_a": {"type": "float", "desc": "比较值 A", "default": 100.0},
             "value_b": {"type": "float", "desc": "比较值 B", "default": 50.0},
-            "true_text": {"type": "string", "desc": "A > B 时打印的文字", "default": "A is greater"},
-            "false_text": {"type": "string", "desc": "A <= B 时打印的文字", "default": "A is not greater"},
+            "true_text": {
+                "type": "string",
+                "desc": "A > B 时打印的文字",
+                "default": "A is greater",
+            },
+            "false_text": {
+                "type": "string",
+                "desc": "A <= B 时打印的文字",
+                "default": "A is not greater",
+            },
         },
         "param_bindings": {
             "value_a": [("greater", "A")],
@@ -136,7 +142,6 @@ TEMPLATES: dict[str, dict] = {
             "false_text": [("print_false", "InString")],
         },
     },
-
     # ── Sequence 并行 ──
     "sequence_dual": {
         "description": "事件触发时同时做两件事 (Then0 和 Then1 各连一个 PrintString)。",
@@ -160,7 +165,6 @@ TEMPLATES: dict[str, dict] = {
             "text_b": [("print_b", "InString")],
         },
     },
-
     # ── Tick 驱动 + 加法 ──
     "tick_counter": {
         "description": "每帧 Tick 时把两个浮点数加起来打印 (展示数据流: Tick→Add→PrintString)。",
@@ -189,8 +193,12 @@ TEMPLATES: dict[str, dict] = {
 # ═══════════════════════════════════════════════════════════════
 
 
-def inject(graph, template_name: str, params: dict[str, Any] | None = None,
-           placeholder_guids: dict[str, Any] | None = None) -> dict:
+def inject(
+    graph,
+    template_name: str,
+    params: dict[str, Any] | None = None,
+    placeholder_guids: dict[str, Any] | None = None,
+) -> dict:
     """把一个模板注入到 BlueprintGraph 里。
 
     参数:
@@ -203,8 +211,7 @@ def inject(graph, template_name: str, params: dict[str, Any] | None = None,
     """
     tmpl = TEMPLATES.get(template_name)
     if tmpl is None:
-        return {"ok": False, "error":
-                f"未知模板: {template_name}. 可用: {list(TEMPLATES)}"}
+        return {"ok": False, "error": f"未知模板: {template_name}. 可用: {list(TEMPLATES)}"}
     params = params or {}
 
     # 1) 合并参数: 取用户传入的, 缺失用默认值
@@ -241,11 +248,14 @@ def inject(graph, template_name: str, params: dict[str, Any] | None = None,
             if node_id and node_id in graph.nodes:
                 graph.nodes[node_id].setdefault("defaults", {})[target_pin] = merged[pname]
 
-    return {"ok": True, "action": "inject_t3d",
-            "template": template_name,
-            "nodes_added": len(id_map),
-            "links_created": links_ok,
-            "params_used": merged}
+    return {
+        "ok": True,
+        "action": "inject_t3d",
+        "template": template_name,
+        "nodes_added": len(id_map),
+        "links_created": links_ok,
+        "params_used": merged,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -259,8 +269,10 @@ def list_templates() -> dict:
     for name, tmpl in TEMPLATES.items():
         out[name] = {
             "description": tmpl["description"],
-            "params": {pn: {"type": pi["type"], "desc": pi["desc"], "default": pi["default"]}
-                       for pn, pi in tmpl.get("params", {}).items()},
+            "params": {
+                pn: {"type": pi["type"], "desc": pi["desc"], "default": pi["default"]}
+                for pn, pi in tmpl.get("params", {}).items()
+            },
             "node_count": len(tmpl["nodes"]),
             "link_count": len(tmpl["links"]),
         }
@@ -285,25 +297,29 @@ def _selfcheck() -> int:
 
     # 2) branch_print 注入 + 参数
     g2 = BlueprintGraph()
-    r = inject(g2, "branch_print",
-               {"condition": True, "true_text": "正面", "false_text": "负面"})
+    r = inject(g2, "branch_print", {"condition": True, "true_text": "正面", "false_text": "负面"})
     assert r["ok"] and r["nodes_added"] == 4 and r["links_created"] == 3, f"branch_print: {r}"
     listed2 = json.loads(g2.bp_list())
     assert len(listed2["nodes"]) == 4 and len(listed2["links"]) == 3
     # 验证参数绑定到节点默认值
     print_node = g2.nodes.get(listed2["nodes"][2]["id"])
-    assert print_node and print_node.get("defaults", {}).get(
-        "InString") == "正面", f"参数未绑定: {print_node}"
+    assert print_node and print_node.get("defaults", {}).get("InString") == "正面", (
+        f"参数未绑定: {print_node}"
+    )
     print("✅ branch_print: 4 节点 3 连线, 参数绑定正确")
 
     # 3) compare_branch_print
     g3 = BlueprintGraph()
-    r = inject(g3, "compare_branch_print",
-               {"value_a": 10.0, "value_b": 5.0,
-                "true_text": "YES", "false_text": "NO"})
+    r = inject(
+        g3,
+        "compare_branch_print",
+        {"value_a": 10.0, "value_b": 5.0, "true_text": "YES", "false_text": "NO"},
+    )
     n_added = sum(1 for _ in g3.nodes)
     n_linked = len(g3.links)
-    assert r["ok"] and n_added == 5 and n_linked >= 4, f"compare: {r} ({n_added} nodes, {n_linked} links)"
+    assert r["ok"] and n_added == 5 and n_linked >= 4, (
+        f"compare: {r} ({n_added} nodes, {n_linked} links)"
+    )
     print("✅ compare_branch_print: Greater → Branch → PrintString 双路")
 
     # 4) sequence_dual

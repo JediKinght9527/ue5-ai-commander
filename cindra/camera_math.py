@@ -8,6 +8,7 @@ yaw=0 朝 +X, 逆时针为正; pitch 正抬头。
 
 自检: python3 -m cindra.camera_math
 """
+
 from __future__ import annotations
 
 import math
@@ -23,6 +24,8 @@ def as_vec3(v) -> Vec3:
     """
     x, y, z = v
     return (float(x), float(y), float(z))
+
+
 Rot3 = tuple[float, float, float]  # (pitch, yaw, roll)
 
 
@@ -36,8 +39,9 @@ def look_at_rotation(eye: Vec3, target: Vec3) -> Rot3:
     return (pitch, yaw, 0.0)
 
 
-def orbit_pose(center: Vec3, distance: float, yaw_deg: float,
-               pitch_deg: float) -> tuple[Vec3, Rot3]:
+def orbit_pose(
+    center: Vec3, distance: float, yaw_deg: float, pitch_deg: float
+) -> tuple[Vec3, Rot3]:
     """环绕位: 相机在 center 周围 distance 处, 按 yaw/pitch 角摆位并看向中心。"""
     yaw = math.radians(yaw_deg)
     pitch = math.radians(pitch_deg)
@@ -60,10 +64,17 @@ def _frames(n_keys: int, fps: int, seconds: float) -> list[int]:
     return [round(i * total / (n_keys - 1)) for i in range(n_keys)]
 
 
-def orbit_keys(center: Vec3, distance: float = 800.0, pitch: float = 20.0,
-               start_yaw: float = 0.0, revolutions: float = 1.0,
-               n_keys: int = 24, fps: int = 24,
-               seconds: float = 8.0, ease: bool = True) -> list[dict]:
+def orbit_keys(
+    center: Vec3,
+    distance: float = 800.0,
+    pitch: float = 20.0,
+    start_yaw: float = 0.0,
+    revolutions: float = 1.0,
+    n_keys: int = 24,
+    fps: int = 24,
+    seconds: float = 8.0,
+    ease: bool = True,
+) -> list[dict]:
     """环绕运镜关键帧。返回 [{frame, location, rotation}]。"""
     keys = []
     for i, frame in enumerate(_frames(n_keys, fps, seconds)):
@@ -71,14 +82,19 @@ def orbit_keys(center: Vec3, distance: float = 800.0, pitch: float = 20.0,
         tt = _ease_in_out(t) if ease else t
         yaw = start_yaw + 360.0 * revolutions * tt
         eye, rot = orbit_pose(center, distance, yaw, pitch)
-        keys.append({"frame": frame, "location": list(eye),
-                     "rotation": list(rot)})
+        keys.append({"frame": frame, "location": list(eye), "rotation": list(rot)})
     return keys
 
 
-def dolly_keys(start: Vec3, end: Vec3, look_at: Vec3 | None = None,
-               n_keys: int = 12, fps: int = 24, seconds: float = 6.0,
-               ease: bool = True) -> list[dict]:
+def dolly_keys(
+    start: Vec3,
+    end: Vec3,
+    look_at: Vec3 | None = None,
+    n_keys: int = 12,
+    fps: int = 24,
+    seconds: float = 6.0,
+    ease: bool = True,
+) -> list[dict]:
     """推拉运镜: start -> end 直线, 可选恒看向 look_at。"""
     keys = []
     for i, frame in enumerate(_frames(n_keys, fps, seconds)):
@@ -90,17 +106,22 @@ def dolly_keys(start: Vec3, end: Vec3, look_at: Vec3 | None = None,
             start[1] + (end[1] - start[1]) * tt,
             start[2] + (end[2] - start[2]) * tt,
         )
-        rot = (look_at_rotation(loc, look_at) if look_at
-               else look_at_rotation(start, end))
-        keys.append({"frame": frame, "location": list(loc),
-                     "rotation": list(rot)})
+        rot = look_at_rotation(loc, look_at) if look_at else look_at_rotation(start, end)
+        keys.append({"frame": frame, "location": list(loc), "rotation": list(rot)})
     return keys
 
 
-def crane_keys(center: Vec3, distance: float = 600.0,
-               start_height: float = 100.0, end_height: float = 900.0,
-               yaw: float = 315.0, n_keys: int = 12, fps: int = 24,
-               seconds: float = 6.0, ease: bool = True) -> list[dict]:
+def crane_keys(
+    center: Vec3,
+    distance: float = 600.0,
+    start_height: float = 100.0,
+    end_height: float = 900.0,
+    yaw: float = 315.0,
+    n_keys: int = 12,
+    fps: int = 24,
+    seconds: float = 6.0,
+    ease: bool = True,
+) -> list[dict]:
     """升降运镜: 固定方位角, 相机从低到高扫过, 恒看中心。"""
     yaw_r = math.radians(yaw)
     keys = []
@@ -108,29 +129,36 @@ def crane_keys(center: Vec3, distance: float = 600.0,
         t = i / (n_keys - 1) if n_keys > 1 else 0.0
         tt = _ease_in_out(t) if ease else t
         h = start_height + (end_height - start_height) * tt
-        loc = (center[0] - distance * math.cos(yaw_r),
-               center[1] - distance * math.sin(yaw_r),
-               center[2] + h)
-        keys.append({"frame": frame, "location": list(loc),
-                     "rotation": list(look_at_rotation(loc, center))})
+        loc = (
+            center[0] - distance * math.cos(yaw_r),
+            center[1] - distance * math.sin(yaw_r),
+            center[2] + h,
+        )
+        keys.append(
+            {"frame": frame, "location": list(loc), "rotation": list(look_at_rotation(loc, center))}
+        )
     return keys
 
 
-def flyover_keys(start: Vec3, end: Vec3, height: float = 500.0,
-                 n_keys: int = 16, fps: int = 24, seconds: float = 8.0,
-                 ease: bool = True) -> list[dict]:
+def flyover_keys(
+    start: Vec3,
+    end: Vec3,
+    height: float = 500.0,
+    n_keys: int = 16,
+    fps: int = 24,
+    seconds: float = 8.0,
+    ease: bool = True,
+) -> list[dict]:
     """飞掠: 在 height 高度从 start 上空飞到 end 上空, 镜头前下方看。"""
     keys = []
     for i, frame in enumerate(_frames(n_keys, fps, seconds)):
         t = i / (n_keys - 1) if n_keys > 1 else 0.0
         tt = _ease_in_out(t) if ease else t
-        loc = (start[0] + (end[0] - start[0]) * tt,
-               start[1] + (end[1] - start[1]) * tt,
-               height)
-        ahead = (loc[0] + (end[0] - start[0]) * 0.25,
-                 loc[1] + (end[1] - start[1]) * 0.25, 0.0)
-        keys.append({"frame": frame, "location": list(loc),
-                     "rotation": list(look_at_rotation(loc, ahead))})
+        loc = (start[0] + (end[0] - start[0]) * tt, start[1] + (end[1] - start[1]) * tt, height)
+        ahead = (loc[0] + (end[0] - start[0]) * 0.25, loc[1] + (end[1] - start[1]) * 0.25, 0.0)
+        keys.append(
+            {"frame": frame, "location": list(loc), "rotation": list(look_at_rotation(loc, ahead))}
+        )
     return keys
 
 
@@ -167,8 +195,9 @@ def _selfcheck() -> None:
     assert k1 == k2, "关键帧不确定!"
     assert k1[0]["frame"] == 0 and k1[-1]["frame"] == 192
     # 转满一圈: 首末位置几乎重合
-    assert all(abs(a - b) < 1e-6
-               for a, b in zip(k1[0]["location"], k1[-1]["location"], strict=True))
+    assert all(
+        abs(a - b) < 1e-6 for a, b in zip(k1[0]["location"], k1[-1]["location"], strict=True)
+    )
     ok += 1
     print("[3/4] orbit_keys 确定性 + 闭环 ✓")
 

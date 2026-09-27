@@ -4,6 +4,7 @@
 提示和工具结果格式化。与 CindraChat 同构: 操作后用 list_graph 读回真实图结构自检。
 蓝图连线有严格的方向/类别/类型规则, 自检尤其重要。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -34,8 +35,7 @@ SYSTEM_PROMPT = """你是 CindraBlueprint —— 嵌在 UE5 编辑器里的 AI �
 class CindraBlueprintAgent(CindraAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
 
-    def __init__(self, transport, client: Any | None = None,
-                 verbose: bool = True) -> None:
+    def __init__(self, transport, client: Any | None = None, verbose: bool = True) -> None:
         super().__init__(transport, blueprint_tools, client=client, verbose=verbose)
 
     def _fmt_result(self, r: dict) -> str:

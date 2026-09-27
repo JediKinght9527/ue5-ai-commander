@@ -224,7 +224,8 @@ def _selfcheck() -> int:
 
     # 9) specs_from_tools 描述格式
     specs = specs_from_tools(
-        "Chat", "chat",
+        "Chat",
+        "chat",
         [{"name": "t1", "description": "做点事", "input_schema": {"type": "object"}}],
         lambda args, s: {},
     )

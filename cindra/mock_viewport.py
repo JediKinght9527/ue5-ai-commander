@@ -8,6 +8,7 @@
 
 自检: python3 -m cindra.mock_viewport
 """
+
 from __future__ import annotations
 
 import math
@@ -53,8 +54,9 @@ class _Canvas:
         if 0 <= x < self.w and 0 <= y < self.h:
             self.px[y * self.w + x] = [int(rgb[0]), int(rgb[1]), int(rgb[2])]
 
-    def fill_rect(self, cx: float, cy: float, hx: float, hy: float,
-                  yaw_deg: float, rgb: tuple[int, int, int]) -> None:
+    def fill_rect(
+        self, cx: float, cy: float, hx: float, hy: float, yaw_deg: float, rgb: tuple[int, int, int]
+    ) -> None:
         """旋转矩形填充: 对包围盒逐像素做逆旋转判内。纯整数扫描, 无 AA。"""
         yaw = math.radians(yaw_deg)
         c, s = math.cos(yaw), math.sin(yaw)
@@ -69,8 +71,7 @@ class _Canvas:
                 if abs(lx) <= hx and abs(ly) <= hy:
                     self.set(x, y, rgb)
 
-    def fill_disc(self, cx: float, cy: float, radius: float,
-                  rgb: tuple[int, int, int]) -> None:
+    def fill_disc(self, cx: float, cy: float, radius: float, rgb: tuple[int, int, int]) -> None:
         r = int(radius) + 1
         for y in range(int(cy) - r, int(cy) + r + 1):
             for x in range(int(cx) - r, int(cx) + r + 1):
@@ -89,13 +90,16 @@ class _Canvas:
 
 def _sorted_actors(actors: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     # painter order: 低的先画, 名字做平局项 -> 确定性
-    return sorted(actors.values(),
-                  key=lambda a: (a["location"][2], a["name"]))
+    return sorted(actors.values(), key=lambda a: (a["location"][2], a["name"]))
 
 
-def render_topdown_png(actors: dict[str, dict[str, Any]], path: str,
-                       width: int = 640, height: int = 640,
-                       span: float = 1500.0) -> str:
+def render_topdown_png(
+    actors: dict[str, dict[str, Any]],
+    path: str,
+    width: int = 640,
+    height: int = 640,
+    span: float = 1500.0,
+) -> str:
     """俯视图: 世界 X 向右, Y 向下, [-span, span] 映射到整幅画。"""
     cv = _Canvas(width, height)
     # 网格线每 500uu 一条, 给 agent 尺度感
@@ -128,19 +132,27 @@ def render_topdown_png(actors: dict[str, dict[str, Any]], path: str,
     return path
 
 
-def render_view_png(actors: dict[str, dict[str, Any]], path: str,
-                    cam_loc: Vec3, cam_rot: Rot3, fov: float = 60.0,
-                    width: int = 640, height: int = 360) -> str:
+def render_view_png(
+    actors: dict[str, dict[str, Any]],
+    path: str,
+    cam_loc: Vec3,
+    cam_rot: Rot3,
+    fov: float = 60.0,
+    width: int = 640,
+    height: int = 360,
+) -> str:
     """粗透视图: 投影 actor 中心, 按深度画缩放方块。糙, 但姿态相关且确定。"""
     pitch = math.radians(cam_rot[0])
     yaw = math.radians(cam_rot[1])
     cp, sp = math.cos(pitch), math.sin(pitch)
     cy_, sy_ = math.cos(yaw), math.sin(yaw)
-    f = (cp * cy_, cp * sy_, sp)          # forward
-    r = (-sy_, cy_, 0.0)                  # right (+yaw 从 +X 转向 +Y)
-    u = (f[1] * r[2] - f[2] * r[1],       # up = f x r
-         f[2] * r[0] - f[0] * r[2],
-         f[0] * r[1] - f[1] * r[0])
+    f = (cp * cy_, cp * sy_, sp)  # forward
+    r = (-sy_, cy_, 0.0)  # right (+yaw 从 +X 转向 +Y)
+    u = (
+        f[1] * r[2] - f[2] * r[1],  # up = f x r
+        f[2] * r[0] - f[0] * r[2],
+        f[0] * r[1] - f[1] * r[0],
+    )
     focal = (width / 2) / math.tan(math.radians(fov) / 2)
 
     cv = _Canvas(width, height)
@@ -185,13 +197,13 @@ def _selfcheck() -> None:
         p_empty = td / "empty.png"
         render_topdown_png(scene.actors, str(p_empty))
         from .imaging import read_png_size
+
         assert read_png_size(p_empty) == (640, 640)
         ok += 1
         print("[1/4] 空场景合法 PNG ✓")
 
         # 2. 3x3 网格, 渲两次字节级一致
-        for pos in [[c * 300 - 300, r * 300 - 300, 0]
-                    for r in range(3) for c in range(3)]:
+        for pos in [[c * 300 - 300, r * 300 - 300, 0] for r in range(3) for c in range(3)]:
             scene.cnd_spawn(actor_type="cube", location=pos)
         p1, p2 = td / "g1.png", td / "g2.png"
         render_topdown_png(scene.actors, str(p1))
@@ -211,6 +223,7 @@ def _selfcheck() -> None:
 
         # 4. 透视图: 相机转 90 度, 图必须变
         from .camera_math import orbit_pose
+
         eye_a, rot_a = orbit_pose((0, 0, 0), 1200, 0, 25)
         eye_b, rot_b = orbit_pose((0, 0, 0), 1200, 90, 25)
         pa, pb = td / "va.png", td / "vb.png"

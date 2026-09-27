@@ -8,6 +8,7 @@ docs_index.LexicalIndex (BM25) 做检索 —— 这样 CindraCode 生成代码�
 和 CindraDocs 同构: docs 索引知识库文档, project 索引工程符号; 共用同一个
 LexicalIndex。离线、纯标准库、确定性, 这台 Mac 上即可验证。
 """
+
 from __future__ import annotations
 
 import os
@@ -24,16 +25,16 @@ SAMPLE_PROJECT = os.path.join(os.path.dirname(__file__), "sample_project")
 #   struct SAMPLEGAME_API FCindraItemData\n{
 _RE_TYPE = re.compile(
     r"\b(class|struct)\s+(?:\w+_API\s+)([AUF]\w+)\s*"
-    r"(?::\s*public\s+([AUF]\w+))?\s*[:{]")
+    r"(?::\s*public\s+([AUF]\w+))?\s*[:{]"
+)
 # UENUM: enum class ECindraItemRarity : uint8
 _RE_ENUM = re.compile(r"\benum\s+class\s+(E\w+)")
 # UFUNCTION 标记 + 紧随其后的函数声明 (取函数名)。
-_RE_UFUNCTION = re.compile(
-    r"UFUNCTION\s*\(([^)]*)\)\s*[\s\S]{0,200}?\b(\w+)\s*\(", re.MULTILINE)
+_RE_UFUNCTION = re.compile(r"UFUNCTION\s*\(([^)]*)\)\s*[\s\S]{0,200}?\b(\w+)\s*\(", re.MULTILINE)
 # UPROPERTY 标记 + 紧随其后的成员声明 (取类型和成员名)。
 _RE_UPROPERTY = re.compile(
-    r"UPROPERTY\s*\(([^)]*)\)\s*[\s\S]{0,160}?\b([\w:<>*]+)\s+(\w+)\s*[=;{]",
-    re.MULTILINE)
+    r"UPROPERTY\s*\(([^)]*)\)\s*[\s\S]{0,160}?\b([\w:<>*]+)\s+(\w+)\s*[=;{]", re.MULTILINE
+)
 
 
 def _iter_source_files(root: str):
@@ -50,8 +51,7 @@ def _leading_comment(src: str, decl_start: int) -> str:
     out: list[str] = []
     for line in reversed(lines):
         s = line.strip()
-        if s.startswith("//") or s.startswith("*") or s.startswith("/*") \
-                or s.endswith("*/"):
+        if s.startswith("//") or s.startswith("*") or s.startswith("/*") or s.endswith("*/"):
             out.append(s.lstrip("/* ").rstrip("*/ "))
         elif s == "":
             continue
@@ -65,8 +65,7 @@ def _file_header_comment(src: str) -> str:
     out: list[str] = []
     for line in src.splitlines():
         s = line.strip()
-        if s.startswith("//") or s.startswith("/*") or s.startswith("*") \
-                or s.endswith("*/"):
+        if s.startswith("//") or s.startswith("/*") or s.startswith("*") or s.endswith("*/"):
             out.append(s.lstrip("/* ").rstrip("*/ "))
         elif s == "":
             if out:  # 注释块结束
@@ -100,10 +99,9 @@ def extract_symbols(root: str = SAMPLE_PROJECT) -> list[dict]:
                     continue
                 seen.add(name)
                 comment = _leading_comment(src, m.start())
-                block = src[m.start():m.start() + 4000]
+                block = src[m.start() : m.start() + 4000]
                 funcs = [fm.group(2) for fm in _RE_UFUNCTION.finditer(block)]
-                props = [(pm.group(2), pm.group(3))
-                         for pm in _RE_UPROPERTY.finditer(block)]
+                props = [(pm.group(2), pm.group(3)) for pm in _RE_UPROPERTY.finditer(block)]
                 kind = "struct" if ckind == "struct" else "class"
                 parts = []
                 if file_doc:
@@ -116,13 +114,17 @@ def extract_symbols(root: str = SAMPLE_PROJECT) -> list[dict]:
                 if funcs:
                     parts.append("UFUNCTION: " + ", ".join(dict.fromkeys(funcs)))
                 if props:
-                    parts.append("UPROPERTY: " + ", ".join(
-                        f"{t} {n}" for t, n in props))
-                symbols.append({
-                    "id": f"{rel}:{name}",
-                    "kind": kind, "name": name, "parent": parent or "",
-                    "file": rel, "text": "\n".join(parts),
-                })
+                    parts.append("UPROPERTY: " + ", ".join(f"{t} {n}" for t, n in props))
+                symbols.append(
+                    {
+                        "id": f"{rel}:{name}",
+                        "kind": kind,
+                        "name": name,
+                        "parent": parent or "",
+                        "file": rel,
+                        "text": "\n".join(parts),
+                    }
+                )
             for em in _RE_ENUM.finditer(src):
                 name = em.group(1)
                 if name in seen:
@@ -130,14 +132,19 @@ def extract_symbols(root: str = SAMPLE_PROJECT) -> list[dict]:
                 seen.add(name)
                 comment = _leading_comment(src, em.start())
                 # 把枚举值也纳入文本 (含 UMETA DisplayName 里的中文)
-                tail = src[em.start():em.start() + 500]
-                body = tail[tail.find("{"):tail.find("}") + 1] if "{" in tail else ""
-                text = " ".join(p for p in [file_doc, comment, f"enum class {name}",
-                                            body] if p)
-                symbols.append({
-                    "id": f"{rel}:{name}", "kind": "enum", "name": name,
-                    "parent": "", "file": rel, "text": text,
-                })
+                tail = src[em.start() : em.start() + 500]
+                body = tail[tail.find("{") : tail.find("}") + 1] if "{" in tail else ""
+                text = " ".join(p for p in [file_doc, comment, f"enum class {name}", body] if p)
+                symbols.append(
+                    {
+                        "id": f"{rel}:{name}",
+                        "kind": "enum",
+                        "name": name,
+                        "parent": "",
+                        "file": rel,
+                        "text": text,
+                    }
+                )
     return symbols
 
 
@@ -148,9 +155,10 @@ class ProjectIndex:
         self.root = root
         self.symbols = extract_symbols(root)
         # LexicalIndex 期望 chunk 有 title/file/text; 把符号名当 title。
-        self.chunks = [{"id": s["id"], "title": s["name"],
-                        "file": s["file"], "text": s["text"]}
-                       for s in self.symbols]
+        self.chunks = [
+            {"id": s["id"], "title": s["name"], "file": s["file"], "text": s["text"]}
+            for s in self.symbols
+        ]
         self._lex = LexicalIndex(self.chunks) if self.chunks else None
 
     def search(self, query: str, k: int = 5) -> list[dict]:
@@ -185,9 +193,11 @@ def _selfcheck() -> int:
     kinds: dict[str, int] = {}
     for s in idx.symbols:
         kinds[s["kind"]] = kinds.get(s["kind"], 0) + 1
-    print(f"符号: {len(idx.symbols)} 个 "
-          f"({', '.join(f'{k}×{v}' for k, v in kinds.items())}), 来自 "
-          f"{len({s['file'] for s in idx.symbols})} 个文件")
+    print(
+        f"符号: {len(idx.symbols)} 个 "
+        f"({', '.join(f'{k}×{v}' for k, v in kinds.items())}), 来自 "
+        f"{len({s['file'] for s in idx.symbols})} 个文件"
+    )
     for s in idx.symbols:
         par = f" : {s['parent']}" if s["parent"] else ""
         print(f"  - [{s['kind']}] {s['name']}{par}  ({s['file']})")

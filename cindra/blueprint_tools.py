@@ -9,6 +9,7 @@
 dedicated 工具的好处 (同 scene_tools): 每步可校验、可渲染、可审计。连线的
 合法性校验在图模型/真 UE schema 里做, 工具层只负责派发并把结果回给 agent。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -23,14 +24,16 @@ TOOLS: list[dict] = [
     {
         "name": "create_blueprint",
         "description": "新建一个 Blueprint 资产并设为当前操作目标 (真 UE 会在 "
-                       "Content 里生成真资产)。path 如 /Game/Blueprints/BP_Hello。",
+        "Content 里生成真资产)。path 如 /Game/Blueprints/BP_Hello。",
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {"type": "string"},
-                "parent_class": {"type": "string",
-                                 "enum": ["Actor", "Pawn", "Character"],
-                                 "description": "默认 Actor"},
+                "parent_class": {
+                    "type": "string",
+                    "enum": ["Actor", "Pawn", "Character"],
+                    "description": "默认 Actor",
+                },
             },
             "required": ["path"],
         },
@@ -38,19 +41,19 @@ TOOLS: list[dict] = [
     {
         "name": "compile_blueprint",
         "description": "编译当前蓝图并回报错误/警告 (含不可达的孤儿节点)。"
-                       "建完图必须编译, 否则改动不生效; 有警告要处理或向用户说明。",
+        "建完图必须编译, 否则改动不生效; 有警告要处理或向用户说明。",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "list_node_types",
         "description": "列出可用的蓝图节点类型及它们的引脚 (名字/方向/类别/类型)。"
-                       "动手建图前先用它了解有哪些节点、各有哪些引脚, 才能正确连线。",
+        "动手建图前先用它了解有哪些节点、各有哪些引脚, 才能正确连线。",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "add_node",
         "description": "在事件图里加一个节点。node_type 必须是 list_node_types 里的一种"
-                       " (如 Event_BeginPlay/Branch/PrintString)。可给 name, 不给则自动命名。",
+        " (如 Event_BeginPlay/Branch/PrintString)。可给 name, 不给则自动命名。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -67,9 +70,11 @@ TOOLS: list[dict] = [
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "var_type": {"type": "string",
-                             "enum": ["bool", "int", "float", "string", "object"],
-                             "description": "默认 float"},
+                "var_type": {
+                    "type": "string",
+                    "enum": ["bool", "int", "float", "string", "object"],
+                    "description": "默认 float",
+                },
                 "default": {"description": "可选默认值"},
             },
             "required": ["name"],
@@ -78,8 +83,8 @@ TOOLS: list[dict] = [
     {
         "name": "connect_pins",
         "description": "连两个引脚, 必须从某节点的 output 引脚连到另一节点的 input 引脚。"
-                       "执行流连 exec 引脚 (then/exec/True/False...), 数据连同类型的 data "
-                       "引脚。引脚名见 list_node_types 或 list_graph。",
+        "执行流连 exec 引脚 (then/exec/True/False...), 数据连同类型的 data "
+        "引脚。引脚名见 list_node_types 或 list_graph。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -103,24 +108,25 @@ TOOLS: list[dict] = [
     {
         "name": "list_blueprint_templates",
         "description": "列出可用的蓝图 T3D 模板 (如 event_print/branch_print/delayed_print等)。"
-                       "每个模板是一次性注入的整张子图 —— 比逐节点 add_node→connect 快得多。"
-                       "选好模板后用 inject_blueprint_t3d 注入。",
+        "每个模板是一次性注入的整张子图 —— 比逐节点 add_node→connect 快得多。"
+        "选好模板后用 inject_blueprint_t3d 注入。",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "inject_blueprint_t3d",
         "description": "用 T3D 模板一次性注入一组节点+连线 (BeginPlay→PrintString, "
-                       "Branch+双路打印, 比较+分支等)。传模板名和参数值, "
-                       "工具负责建全部节点并连好线、设好默认值。"
-                       "先用 list_blueprint_templates 看有哪些模板、各需要什么参数。",
+        "Branch+双路打印, 比较+分支等)。传模板名和参数值, "
+        "工具负责建全部节点并连好线、设好默认值。"
+        "先用 list_blueprint_templates 看有哪些模板、各需要什么参数。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "template": {"type": "string",
-                             "enum": list(_list_t3d_templates().keys()),
-                             "description": "模板名, 见 list_blueprint_templates"},
-                "params": {"type": "object",
-                           "description": "参数覆盖字典, 不传的用默认值"},
+                "template": {
+                    "type": "string",
+                    "enum": list(_list_t3d_templates().keys()),
+                    "description": "模板名, 见 list_blueprint_templates",
+                },
+                "params": {"type": "object", "description": "参数覆盖字典, 不传的用默认值"},
             },
             "required": ["template"],
         },
@@ -128,7 +134,7 @@ TOOLS: list[dict] = [
     {
         "name": "list_graph",
         "description": "列出当前图的所有节点、连线、变量。建图过程中和完成后用它读回真实"
-                       "结构自检, 确认节点连对了 —— 不要'自信地以为连上了'。",
+        "结构自检, 确认节点连对了 —— 不要'自信地以为连上了'。",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -142,34 +148,35 @@ TOOLS: list[dict] = [
 def dispatch(transport: Any, name: str, args: dict[str, Any]) -> dict:
     """执行一个工具调用, 返回结果 dict (给 agent 当 tool_result)。"""
     if name == "create_blueprint":
-        return transport.call("bp_create",
-                              path=args["path"],
-                              parent_class=args.get("parent_class", "Actor"))
+        return transport.call(
+            "bp_create", path=args["path"], parent_class=args.get("parent_class", "Actor")
+        )
 
     if name == "compile_blueprint":
         return transport.call("bp_compile")
 
     if name == "list_node_types":
-        return {"ok": True, "action": "list_node_types",
-                "node_types": node_templates()}
+        return {"ok": True, "action": "list_node_types", "node_types": node_templates()}
 
     if name == "add_node":
-        return transport.call("bp_add_node",
-                              node_type=args["node_type"],
-                              name=args.get("name"))
+        return transport.call("bp_add_node", node_type=args["node_type"], name=args.get("name"))
 
     if name == "add_variable":
-        return transport.call("bp_add_variable",
-                              name=args["name"],
-                              var_type=args.get("var_type", "float"),
-                              default=args.get("default"))
+        return transport.call(
+            "bp_add_variable",
+            name=args["name"],
+            var_type=args.get("var_type", "float"),
+            default=args.get("default"),
+        )
 
     if name == "connect_pins":
-        return transport.call("bp_connect",
-                              from_node=args["from_node"],
-                              from_pin=args["from_pin"],
-                              to_node=args["to_node"],
-                              to_pin=args["to_pin"])
+        return transport.call(
+            "bp_connect",
+            from_node=args["from_node"],
+            from_pin=args["from_pin"],
+            to_node=args["to_node"],
+            to_pin=args["to_pin"],
+        )
 
     if name == "delete_node":
         return transport.call("bp_delete_node", node_id=args["node_id"])
@@ -182,15 +189,19 @@ def dispatch(transport: Any, name: str, args: dict[str, Any]) -> dict:
 
     if name == "list_blueprint_templates":
         from .t3d_templates import list_templates
-        return {"ok": True, "action": "list_blueprint_templates",
-                "templates": list_templates()}
+
+        return {"ok": True, "action": "list_blueprint_templates", "templates": list_templates()}
 
     if name == "inject_blueprint_t3d":
         from .t3d_templates import inject
+
         # 找到 graph 对象: transport 如果是 MockBlueprintTransport 或后面加了 .graph
         graph = getattr(transport, "graph", None)
         if graph is None:
-            return {"ok": False, "error": "当前 blueprint transport 不支持 T3D 注入 (需要 graph 属性)"}
+            return {
+                "ok": False,
+                "error": "当前 blueprint transport 不支持 T3D 注入 (需要 graph 属性)",
+            }
         return inject(graph, args["template"], args.get("params", {}))
 
     return {"ok": False, "error": f"unknown tool: {name}"}

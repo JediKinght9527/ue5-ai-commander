@@ -7,6 +7,7 @@
 
 每个模块源码必须幂等 (纯 def, import 时无副作用), 编辑器重启后重注入安全。
 """
+
 from __future__ import annotations
 
 from .assets import SOURCE as _ASSETS_SOURCE

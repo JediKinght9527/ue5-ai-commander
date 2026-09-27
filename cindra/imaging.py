@@ -6,6 +6,7 @@ Cindra 坚持零第三方依赖 (requirements 只有 anthropic SDK), 所以自�
 
 自检: python3 -m cindra.imaging
 """
+
 from __future__ import annotations
 
 import base64
@@ -20,20 +21,26 @@ _PNG_SIG = b"\x89PNG\r\n\x1a\n"
 
 
 def _chunk(tag: bytes, data: bytes) -> bytes:
-    return (struct.pack(">I", len(data)) + tag + data
-            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+    return (
+        struct.pack(">I", len(data))
+        + tag
+        + data
+        + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+    )
 
 
-def write_png(path: str | Path, width: int, height: int,
-              rgb_rows: list[bytes]) -> None:
+def write_png(path: str | Path, width: int, height: int, rgb_rows: list[bytes]) -> None:
     """写 8-bit RGB PNG。rgb_rows: 每行 width*3 字节。"""
     if len(rgb_rows) != height:
         raise ValueError(f"expected {height} rows, got {len(rgb_rows)}")
     raw = b"".join(b"\x00" + row for row in rgb_rows)  # 每行 filter=0
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    payload = (_PNG_SIG + _chunk(b"IHDR", ihdr)
-               + _chunk(b"IDAT", zlib.compress(raw, 6))
-               + _chunk(b"IEND", b""))
+    payload = (
+        _PNG_SIG
+        + _chunk(b"IHDR", ihdr)
+        + _chunk(b"IDAT", zlib.compress(raw, 6))
+        + _chunk(b"IEND", b"")
+    )
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_bytes(payload)
 
@@ -53,7 +60,8 @@ def b64_file(path: str | Path, max_bytes: int = MAX_IMAGE_BYTES) -> str:
     if len(data) > max_bytes:
         raise ValueError(
             f"image too large: {len(data)} bytes > {max_bytes} ({path}); "
-            "降低截图分辨率 (默认 1280x720 不该超)")
+            "降低截图分辨率 (默认 1280x720 不该超)"
+        )
     return base64.standard_b64encode(data).decode("ascii")
 
 
@@ -63,8 +71,12 @@ def _selfcheck() -> None:
     ok = 0
     with tempfile.TemporaryDirectory() as td:
         p = Path(td) / "t.png"
-        rows = [bytes([255, 0, 0] * 4), bytes([0, 255, 0] * 4),
-                bytes([0, 0, 255] * 4), bytes([9, 9, 9] * 4)]
+        rows = [
+            bytes([255, 0, 0] * 4),
+            bytes([0, 255, 0] * 4),
+            bytes([0, 0, 255] * 4),
+            bytes([9, 9, 9] * 4),
+        ]
         write_png(p, 4, 4, rows)
         first = p.read_bytes()
         write_png(p, 4, 4, rows)

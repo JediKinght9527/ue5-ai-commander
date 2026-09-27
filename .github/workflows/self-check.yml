@@ -70,8 +70,10 @@ jobs:
       - name: Ruff
         run: uv run --frozen ruff check cindra/ run_selfchecks.py check_readme_consistency.py
 
-      # 刻意不跑 `ruff format --check`: 全量格式化会重排 45 个文件,
-      # 混进功能修复里 diff 就没法 review 了。等功能稳定后单独一个 commit 做。
+      # 格式化门禁: v0.3.0 发布后统一格式化过一次（全量重排 48 个文件，
+      # 单独一个 commit，与功能修复分开以保证 diff 可 review），此后纳入门禁。
+      - name: Ruff format check
+        run: uv run --frozen ruff format --check cindra/ run_selfchecks.py check_readme_consistency.py check_ue.py
 
       - name: Pyright
         run: uv run --frozen pyright

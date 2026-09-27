@@ -4,6 +4,7 @@
 和工具结果格式化。与 CindraChat 同构: agent 调 search_docs 读回真实片段再作答 ==
 CindraChat 调 list_actors 自检, 都强制"基于真实证据"。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -30,8 +31,7 @@ class CindraDocsAgent(CindraAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
     TOOL_EMOJI = "🔎"
 
-    def __init__(self, index, client: Any | None = None,
-                 verbose: bool = True) -> None:
+    def __init__(self, index, client: Any | None = None, verbose: bool = True) -> None:
         super().__init__(index, docs_tools, client=client, verbose=verbose)
 
     def _fmt_result(self, r: dict) -> str:
@@ -39,8 +39,7 @@ class CindraDocsAgent(CindraAgent):
             return f"❌ {r.get('error')}"
         if r.get("action") == "search":
             hits = r.get("results", [])
-            return f"{len(hits)} 片段: " + ", ".join(
-                f"{h['file']}#{h['title']}" for h in hits)
+            return f"{len(hits)} 片段: " + ", ".join(f"{h['file']}#{h['title']}" for h in hits)
         if r.get("action") == "list_topics":
             return f"{r.get('count')} 个主题文件"
         return _json({k: v for k, v in r.items() if k != "ok"})

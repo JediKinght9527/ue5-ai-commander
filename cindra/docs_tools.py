@@ -7,6 +7,7 @@
   search_docs(query, k)  -> index.search    (对照 scene_tools 的具体操作工具)
   list_topics()          -> 列知识库主题    (对照 list_actors 的"读回状态")
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -18,16 +19,14 @@ TOOLS: list[dict] = [
     {
         "name": "search_docs",
         "description": "在本地 UE5 知识库里检索, 返回最相关的若干文档片段 (带标题和"
-                       "来源文件)。回答任何 UE/虚幻引擎相关问题前都应先用它取证据, "
-                       "再根据检索到的片段作答, 不要凭记忆编造 API。一个复杂问题可拆成"
-                       "多次检索不同子问题。",
+        "来源文件)。回答任何 UE/虚幻引擎相关问题前都应先用它取证据, "
+        "再根据检索到的片段作答, 不要凭记忆编造 API。一个复杂问题可拆成"
+        "多次检索不同子问题。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string",
-                          "description": "检索关键词或自然语言问题"},
-                "k": {"type": "integer",
-                      "description": "返回片段数, 默认 4"},
+                "query": {"type": "string", "description": "检索关键词或自然语言问题"},
+                "k": {"type": "integer", "description": "返回片段数, 默认 4"},
             },
             "required": ["query"],
         },
@@ -35,7 +34,7 @@ TOOLS: list[dict] = [
     {
         "name": "list_topics",
         "description": "列出知识库里有哪些主题 (每个文件的标题)。用户问'你都懂些什么/"
-                       "知识库覆盖哪些主题'时用, 或你想先看全貌再决定检索什么时用。",
+        "知识库覆盖哪些主题'时用, 或你想先看全貌再决定检索什么时用。",
         "input_schema": {"type": "object", "properties": {}},
     },
 ]
@@ -53,8 +52,7 @@ def dispatch(index: Any, name: str, args: dict[str, Any]) -> dict:
             hits = index.search(query, k=k)
         except Exception as e:  # noqa: BLE001 - 把错误回给 agent
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        return {"ok": True, "action": "search", "query": query,
-                "count": len(hits), "results": hits}
+        return {"ok": True, "action": "search", "query": query, "count": len(hits), "results": hits}
 
     if name == "list_topics":
         # 从 index 的 chunks 里汇总每个文件的标题
@@ -63,7 +61,6 @@ def dispatch(index: Any, name: str, args: dict[str, Any]) -> dict:
         for c in chunks:
             topics.setdefault(c["file"], []).append(c["title"])
         out = [{"file": f, "titles": ts} for f, ts in topics.items()]
-        return {"ok": True, "action": "list_topics",
-                "count": len(out), "topics": out}
+        return {"ok": True, "action": "list_topics", "count": len(out), "topics": out}
 
     return {"ok": False, "error": f"unknown tool: {name}"}

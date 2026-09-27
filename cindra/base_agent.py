@@ -10,6 +10,7 @@ CindraChat/Docs/Code/Blueprint 的 agent 本来是同一段手写 loop 的复制
 把工具结果回喂 (验证闭环)、未来插入权限确认。系统提示 + 工具表打了 prompt
 cache 断点, 多轮对话里固定前缀只算一次钱。
 """
+
 from __future__ import annotations
 
 import json
@@ -25,15 +26,15 @@ class CindraAgent:
 
     SYSTEM_PROMPT: str = ""
     MODEL: str = DEFAULT_MODEL
-    TOOL_EMOJI: str = "⚙️"   # 工具调用日志前缀, 子类可换 (docs/code 用 🔎)
+    TOOL_EMOJI: str = "⚙️"  # 工具调用日志前缀, 子类可换 (docs/code 用 🔎)
     # 单次 send 内某工具的调用上限 (视觉闭环要在代码层封顶, 不能只靠提示词)。
     PER_SEND_TOOL_LIMITS: dict[str, int] = {}
     # 对话里最多保留几张历史截图 (更早的替换成文字 stub, 控住上下文成本)
     IMAGE_WINDOW: int = 3
 
-    def __init__(self, target, tools_module,
-                 client: Any | None = None,
-                 verbose: bool = True) -> None:
+    def __init__(
+        self, target, tools_module, client: Any | None = None, verbose: bool = True
+    ) -> None:
         # target: dispatch 的上下文对象 (chat/blueprint 是 transport, docs/code 是 index)
         self.target = target
         self.tools_module = tools_module
@@ -67,10 +68,12 @@ class CindraAgent:
                 tools=tools,
                 messages=self.messages,
             )
-            self.messages.append({
-                "role": "assistant",
-                "content": [b.to_message_block() for b in resp.content],
-            })
+            self.messages.append(
+                {
+                    "role": "assistant",
+                    "content": [b.to_message_block() for b in resp.content],
+                }
+            )
 
             for block in resp.content:
                 if block.type == "text" and block.text.strip():
@@ -91,12 +94,14 @@ class CindraAgent:
                 result = self.tools_module.dispatch(self.target, block.name, block.input)
                 result = self._post_tool(block.name, block.input, result, ctx)
                 self._log(f"      → {self._fmt_result(result)}")
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": self._tool_result_content(result),
-                    "is_error": not result.get("ok", True),
-                })
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": self._tool_result_content(result),
+                        "is_error": not result.get("ok", True),
+                    }
+                )
             self.messages.append({"role": "user", "content": tool_results})
 
         return final_text
@@ -119,18 +124,24 @@ class CindraAgent:
         if not img:
             return _json(result)
         import base64
+
         try:
             with open(img, "rb") as f:
                 data = base64.standard_b64encode(f.read()).decode()
         except OSError as e:
-            return _json({**{k: v for k, v in result.items()
-                             if k != "_image_path"},
-                          "ok": False, "error": f"读截图失败: {e}"})
+            return _json(
+                {
+                    **{k: v for k, v in result.items() if k != "_image_path"},
+                    "ok": False,
+                    "error": f"读截图失败: {e}",
+                }
+            )
         rest = {k: v for k, v in result.items() if k != "_image_path"}
         return [
-            {"type": "image",
-             "source": {"type": "base64", "media_type": "image/png",
-                        "data": data}},
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/png", "data": data},
+            },
             {"type": "text", "text": _json(rest)},
         ]
 
@@ -162,14 +173,14 @@ def _tool_result_content(result: dict):
     blocks: list[dict] = [{"type": "text", "text": _json(rest)}]
     for path in images:
         try:
-            blocks.append({
-                "type": "image",
-                "source": {"type": "base64", "media_type": "image/png",
-                           "data": b64_file(path)},
-            })
+            blocks.append(
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/png", "data": b64_file(path)},
+                }
+            )
         except Exception as e:  # noqa: BLE001
-            blocks.append({"type": "text",
-                           "text": f"(截图读取失败 {path}: {e})"})
+            blocks.append({"type": "text", "text": f"(截图读取失败 {path}: {e})"})
     return blocks
 
 

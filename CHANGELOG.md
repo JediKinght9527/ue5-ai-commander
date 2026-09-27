@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Changed
+
+- 统一代码格式（`ruff format`，48 个文件）。**无任何逻辑改动** —— 用
+  `ast.dump` 逐文件比对确认语法树完全一致。格式化单独成一个 commit，
+  避免与功能修复混在一起导致 diff 无法 review。CI 纳入 `ruff format --check` 门禁。
+
 ## 0.3.0 (2026-09-27)
 
 首个公开版本。9 个模块域、48 个 MCP 工具、mock/真引擎双后端 —— PCG 程序化生成、蓝图图、C++ 生成、引擎 RAG 问答、运镜、布光、PIE 自动化。

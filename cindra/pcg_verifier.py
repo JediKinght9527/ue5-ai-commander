@@ -8,12 +8,17 @@
 
 原则 (同 verifier): 宁可放过不误杀, 只抓确定的"静默失败"。
 """
+
 from __future__ import annotations
 
 # PCG 中会改图结构或产生场景副作用的工具
 MUTATING_PCG_TOOLS = {
-    "add_pcg_node", "connect_pcg_pins", "set_pcg_param",
-    "delete_pcg_node", "run_pcg_graph", "clear_pcg_graph",
+    "add_pcg_node",
+    "connect_pcg_pins",
+    "set_pcg_param",
+    "delete_pcg_node",
+    "run_pcg_graph",
+    "clear_pcg_graph",
 }
 
 
@@ -21,8 +26,9 @@ def graph_snapshot(graph) -> dict | None:
     """拍一张图结构的快照: 节点 id 集合 + 连线集合。"""
     try:
         nodes = {nid: n["type"] for nid, n in graph.nodes.items()}
-        links = {(ln["from_node"], ln["from_pin"],
-                  ln["to_node"], ln["to_pin"]) for ln in graph.links}
+        links = {
+            (ln["from_node"], ln["from_pin"], ln["to_node"], ln["to_pin"]) for ln in graph.links
+        }
         return {"nodes": nodes, "links": links}
     except Exception:
         return None
@@ -36,12 +42,17 @@ def graph_diff(before: dict | None, after: dict | None) -> dict:
     nodes_removed = [n for n in before["nodes"] if n not in after["nodes"]]
     links_added = [ln for ln in after["links"] if ln not in before["links"]]
     links_removed = [ln for ln in before["links"] if ln not in after["links"]]
-    return {"nodes_added": nodes_added, "nodes_removed": nodes_removed,
-            "links_added": links_added, "links_removed": links_removed}
+    return {
+        "nodes_added": nodes_added,
+        "nodes_removed": nodes_removed,
+        "links_added": links_added,
+        "links_removed": links_removed,
+    }
 
 
-def verify_graph_edit(tool: str, args: dict, result: dict,
-                      before: dict | None, after: dict | None) -> tuple[bool, str]:
+def verify_graph_edit(
+    tool: str, args: dict, result: dict, before: dict | None, after: dict | None
+) -> tuple[bool, str]:
     """按图形编辑操作类型, 用读回的结构 diff 对账。"""
     if not result.get("ok", True):
         return True, "工具已自报失败, 无需对账"
@@ -127,8 +138,9 @@ def verify_execution(result: dict, before_graph: dict | None) -> tuple[bool, str
 # ═══════════════════════════════════════════════════════════════
 
 
-def execute_scene_verify(tool: str, scene_before, scene_after,
-                          exec_result: dict) -> tuple[bool, str]:
+def execute_scene_verify(
+    tool: str, scene_before, scene_after, exec_result: dict
+) -> tuple[bool, str]:
     """真 UE 后端: run_pcg_graph 执行后会 spawn Actor → 用场景快照对账。
 
     scene_before/after 是 verifier.take_snapshot() 的返回值 (name → actor dict)。
@@ -165,9 +177,11 @@ def execute_scene_verify(tool: str, scene_before, scene_after,
     added = [n for n in scene_after if n not in scene_before]
     actual = len(added)
     if actual == 0:
-        return False, (f"声称 {spawned_node} 产了 {expected} 个 spawn 点, "
-                       "但场景没多出任何 actor (静默失败!)")
+        return False, (
+            f"声称 {spawned_node} 产了 {expected} 个 spawn 点, 但场景没多出任何 actor (静默失败!)"
+        )
     if actual < expected * 0.8:
-        return False, (f"{spawned_node} 声称 {expected} 个 spawn 点, "
-                       f"但场景只多了 {actual} 个 actor (不足 80%)")
+        return False, (
+            f"{spawned_node} 声称 {expected} 个 spawn 点, 但场景只多了 {actual} 个 actor (不足 80%)"
+        )
     return True, f"场景新增 {actual} 个 actor (预期 ≥{int(expected * 0.8)}), 执行生效"

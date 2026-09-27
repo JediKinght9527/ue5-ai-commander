@@ -3,6 +3,7 @@
 共享 loop/helper 在 base_agent.CindraAgent; 这里只声明 CindraCode 特有的系统提示
 和工具结果格式化。护城河: 生成前先 search_project 了解工程已有的类/命名/约定。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -32,8 +33,7 @@ class CindraCodeAgent(CindraAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
     TOOL_EMOJI = "🔎"
 
-    def __init__(self, index, client: Any | None = None,
-                 verbose: bool = True) -> None:
+    def __init__(self, index, client: Any | None = None, verbose: bool = True) -> None:
         super().__init__(index, code_tools, client=client, verbose=verbose)
 
     def _fmt_result(self, r: dict) -> str:

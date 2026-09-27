@@ -13,6 +13,7 @@
 
 自检: python3 -m cindra.demo --check
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,25 +33,46 @@ def build_forest_scene():
     from cindra.pcg_model import PCGGraph
 
     g = PCGGraph()
-    g.add_node("landscape_input", "terrain",
-               {"width": 20000, "depth": 20000, "height_min": 0,
-                "height_max": 400, "noise_scale": 0.3, "seed": 7})
-    g.add_node("surface_sampler", "sampler",
-               {"points_per_sqm": 0.02, "seed": 42})
-    g.add_node("density_noise", "noise",
-               {"amplitude": 0.25, "frequency": 1.5, "seed": 77})
-    g.add_node("slope_filter", "flat_only",
-               {"max_density_as_flat": 0.2, "invert": False})
-    g.add_node("transform_points", "vary",
-               {"offset_min": [-30, -30, 0], "offset_max": [30, 30, 0],
-                "rotation_min": [0, 0, 0], "rotation_max": [0, 360, 0],
-                "scale_min": 0.7, "scale_max": 1.4, "seed": 5})
-    g.add_node("static_mesh_spawner", "trees",
-               {"mesh_path": "/Game/Nature/Trees/Oak_Tree",
-                "density_threshold": 0.1})
+    g.add_node(
+        "landscape_input",
+        "terrain",
+        {
+            "width": 20000,
+            "depth": 20000,
+            "height_min": 0,
+            "height_max": 400,
+            "noise_scale": 0.3,
+            "seed": 7,
+        },
+    )
+    g.add_node("surface_sampler", "sampler", {"points_per_sqm": 0.02, "seed": 42})
+    g.add_node("density_noise", "noise", {"amplitude": 0.25, "frequency": 1.5, "seed": 77})
+    g.add_node("slope_filter", "flat_only", {"max_density_as_flat": 0.2, "invert": False})
+    g.add_node(
+        "transform_points",
+        "vary",
+        {
+            "offset_min": [-30, -30, 0],
+            "offset_max": [30, 30, 0],
+            "rotation_min": [0, 0, 0],
+            "rotation_max": [0, 360, 0],
+            "scale_min": 0.7,
+            "scale_max": 1.4,
+            "seed": 5,
+        },
+    )
+    g.add_node(
+        "static_mesh_spawner",
+        "trees",
+        {"mesh_path": "/Game/Nature/Trees/Oak_Tree", "density_threshold": 0.1},
+    )
     g.connect("terrain", "landscape", "sampler", "source")
-    for a, b in [("sampler", "noise"), ("noise", "flat_only"),
-                 ("flat_only", "vary"), ("vary", "trees")]:
+    for a, b in [
+        ("sampler", "noise"),
+        ("noise", "flat_only"),
+        ("flat_only", "vary"),
+        ("vary", "trees"),
+    ]:
         g.connect(a, "points", b, "points")
 
     result = g.execute()
@@ -61,7 +83,8 @@ def build_forest_scene():
     trees = g.nodes["trees"]["cache"]["points"]
     for i, p in enumerate(trees):
         scene.cnd_spawn(
-            actor_type="cube", name=f"Oak_{i:03d}",
+            actor_type="cube",
+            name=f"Oak_{i:03d}",
             location=p["location"],
             rotation=p["rotation"],
             scale=p["scale"],
@@ -85,8 +108,7 @@ def render_pngs(scene, out_dir: str) -> tuple[str, str]:
     return top, view
 
 
-def _render_forest_closeup(actors, path: str, width: int = 1280,
-                           height: int = 720) -> str:
+def _render_forest_closeup(actors, path: str, width: int = 1280, height: int = 720) -> str:
     """给 demo 用的"树林特写"渲染器。
 
     不是通用 mock_viewport (那个追求确定性), 这个是给 README 截图用的:
@@ -133,9 +155,11 @@ def _render_forest_closeup(actors, path: str, width: int = 1280,
     right = (-fwd[1], fwd[0], 0.0)
     rl = math.sqrt(right[0] ** 2 + right[1] ** 2)
     right = tuple(v / rl for v in right)
-    up = (fwd[1] * right[2] - fwd[2] * right[1],
-          fwd[2] * right[0] - fwd[0] * right[2],
-          fwd[0] * right[1] - fwd[1] * right[0])
+    up = (
+        fwd[1] * right[2] - fwd[2] * right[1],
+        fwd[2] * right[0] - fwd[0] * right[2],
+        fwd[0] * right[1] - fwd[1] * right[0],
+    )
     focal = (width / 2) / math.tan(math.radians(45) / 2)
 
     cv = _C(width, height)
@@ -166,7 +190,7 @@ def _render_forest_closeup(actors, path: str, width: int = 1280,
 
     for depth, _name, sx, sy, s in proj:
         # 树的大小随深度衰减
-        base = focal * 260.0 * s / depth   # 树冠半径 (px)
+        base = focal * 260.0 * s / depth  # 树冠半径 (px)
         if base < 2.0:
             continue
         # 树干
@@ -225,12 +249,14 @@ def _check() -> int:
         g1, s1, trees1 = build_forest_scene()
         g2, s2, trees2 = build_forest_scene()
         assert len(trees1) == len(trees2) == len(trees1), "两次建树数量不一致"
-        assert all(a["location"] == b["location"]
-                   for a, b in zip(trees1, trees2, strict=True)), "两次树的位置不一致"
+        assert all(a["location"] == b["location"] for a, b in zip(trees1, trees2, strict=True)), (
+            "两次树的位置不一致"
+        )
         print(f"[1/3] 确定性: 两次运行产出 {len(trees1)} 棵树, 位置完全一致 ✓")
 
         # PNG 两次渲染字节级一致
         from cindra.mock_viewport import render_topdown_png
+
         top1 = os.path.join(td, "a.png")
         top2 = os.path.join(td, "b.png")
         render_topdown_png(s1.actors, top1, span=12000)
@@ -241,6 +267,7 @@ def _check() -> int:
 
         # PNG 是合法文件且非空
         from cindra.imaging import read_png_size
+
         w, h = read_png_size(top1)
         assert w > 0 and h > 0
         print(f"[3/3] 合法 PNG ({w}x{h}) ✓")

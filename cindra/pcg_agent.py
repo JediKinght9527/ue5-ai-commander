@@ -14,6 +14,7 @@ Assistant 的"嘴"), 而是真正搭图、执行、看结果、自我修正的"�
 - run_pcg_graph 执行后校验产出数据+场景快照 → 确保"工具返回 ok 但引擎没生效"的
   静默失败被抓
 """
+
 from __future__ import annotations
 
 import anthropic
@@ -79,8 +80,7 @@ mock 里表面采样点的默认密度是 0.5 (无噪声时), 噪声后范围近
 class CindraPCGAgent(CindraAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
 
-    def __init__(self, client: anthropic.Anthropic | None = None,
-                 verbose: bool = True) -> None:
+    def __init__(self, client: anthropic.Anthropic | None = None, verbose: bool = True) -> None:
         self.pcg_graph = PCGGraph()
         super().__init__(self.pcg_graph, pcg_tools, client=client, verbose=verbose)
 
@@ -101,9 +101,12 @@ class CindraPCGAgent(CindraAgent):
             # 执行校验: 产出数据的内部一致性
             ok, why = pcg_verifier.verify_execution(result, ctx)
             if not ok:
-                return {**result, "ok": False,
-                        "error": f"VERIFY FAILED: {why}",
-                        "verify": {"ok": False, "why": why}}
+                return {
+                    **result,
+                    "ok": False,
+                    "error": f"VERIFY FAILED: {why}",
+                    "verify": {"ok": False, "why": why},
+                }
             result["verify"] = {"ok": True, "why": why}
             return result
 
@@ -111,9 +114,12 @@ class CindraPCGAgent(CindraAgent):
         after_snapshot = pcg_verifier.graph_snapshot(self.target)
         ok, why = pcg_verifier.verify_graph_edit(name, args, result, ctx, after_snapshot)
         if not ok:
-            return {**result, "ok": False,
-                    "error": f"VERIFY FAILED: {why}",
-                    "verify": {"ok": False, "why": why}}
+            return {
+                **result,
+                "ok": False,
+                "error": f"VERIFY FAILED: {why}",
+                "verify": {"ok": False, "why": why},
+            }
         result["verify"] = {"ok": True, "why": why}
         return result
 

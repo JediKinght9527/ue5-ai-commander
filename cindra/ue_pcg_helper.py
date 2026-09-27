@@ -39,6 +39,7 @@ Settings 子类现已稳定)。在 Python 里操控 PCG 图的主要路径:
 
 自检: 等 Windows + UE 5.7 上机时跑, 类似 check_ue.py 的 5 阶诊断。
 """
+
 from __future__ import annotations
 
 # 这段源码会被原样发到 UE 的 Python 解释器里执行。引擎侧 import unreal。
@@ -578,17 +579,19 @@ class UEPCGTransport:
         if self._conn is None:
             raise RuntimeError(
                 "UE PCG transport 需要先建立 Remote Execution 连接。"
-                "确认 UE 5.7 编辑器开着 + Remote Execution 已启用。")
+                "确认 UE 5.7 编辑器开着 + Remote Execution 已启用。"
+            )
 
     def call(self, func: str, **kwargs) -> dict:
         import json as _json
+
         self._ensure()
         assert self._conn is not None  # _ensure 连不上会 raise, 到这里必然有
         try:
             if not self._bootstrapped:
                 self._conn.run_command(
-                    UE_PCG_HELPER_SOURCE, unattended=True,
-                    exec_mode="ExecuteFile")
+                    UE_PCG_HELPER_SOURCE, unattended=True, exec_mode="ExecuteFile"
+                )
                 self._bootstrapped = True
             cmd = f"print(pcg_dispatch('{func}', '{_json.dumps(kwargs)}'))"
             res = self._conn.run_command(cmd, unattended=True)

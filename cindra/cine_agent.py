@@ -2,6 +2,7 @@
 
 共享 loop 在 base_agent; 这里是镜头语言的系统提示 + 审片闭环。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -34,8 +35,7 @@ class CindraCineAgent(CindraAgent):
     TOOL_EMOJI = "🎬"
     PER_SEND_TOOL_LIMITS = {"render_sequence": 3, "review_render": 4}
 
-    def __init__(self, transport, client: Any | None = None,
-                 verbose: bool = True) -> None:
+    def __init__(self, transport, client: Any | None = None, verbose: bool = True) -> None:
         super().__init__(transport, cine_tools, client=client, verbose=verbose)
         self.transport = transport
 
@@ -47,5 +47,4 @@ class CindraCineAgent(CindraAgent):
             return f"🎞 {n} 帧 -> {r.get('out_dir')}"
         if r.get("action") == "seq_add_keys":
             return f"关键帧 x{r.get('total_keys')}"
-        return _json({k: v for k, v in r.items()
-                      if k not in ("ok", "images")})
+        return _json({k: v for k, v in r.items() if k not in ("ok", "images")})

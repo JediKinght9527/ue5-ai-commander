@@ -26,6 +26,7 @@ CindraPCG (自然语言操控 UE5.7 PCG 程序化生成, 🆕):
 
 需要环境变量 ANTHROPIC_API_KEY (跑 agent 时)。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,6 +43,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 def build_transport(backend: str):
     from .transport import MockTransport, RemoteExecTransport
+
     if backend == "mock":
         return MockTransport()
     if backend == "ue":
@@ -61,8 +63,7 @@ def _check_model_config(args) -> int:
     return 0
 
 
-def _repl(agent, banner: str, commands: dict, *, once: str | None = None,
-          after_send=None) -> int:
+def _repl(agent, banner: str, commands: dict, *, once: str | None = None, after_send=None) -> int:
     if once:
         agent.send(once)
         if after_send:
@@ -99,13 +100,9 @@ def run_chat(args) -> int:
     from .scene_intent import try_handle_scene_prompt
 
     transport = build_transport(args.backend)
-    if args.once and try_handle_blockout_prompt(
-        transport, args.once, verbose=not args.quiet
-    ):
+    if args.once and try_handle_blockout_prompt(transport, args.once, verbose=not args.quiet):
         return 0
-    if args.once and try_handle_scene_prompt(
-        transport, args.once, verbose=not args.quiet
-    ):
+    if args.once and try_handle_scene_prompt(transport, args.once, verbose=not args.quiet):
         return 0
 
     config_status = _check_model_config(args)
@@ -118,20 +115,20 @@ def run_chat(args) -> int:
         res = transport.call("cnd_list_assets")
         if res.get("ok"):
             from .asset_index import load_asset_index
+
             asset_index = load_asset_index(res["path"])
             print(f"asset manifest: {res['count']} 条 <- {res['path']}")
         else:
             print(f"WARNING: 资产枚举失败: {res.get('error')}", file=sys.stderr)
 
-    agent = CindraChatAgent(transport, verbose=not args.quiet,
-                            asset_index=asset_index)
+    agent = CindraChatAgent(transport, verbose=not args.quiet, asset_index=asset_index)
 
     session_name = getattr(args, "session", None)
     if session_name:
         from .session import load_session, save_session
+
         if load_session(session_name, agent, transport):
-            print(f"(session '{session_name}' 已恢复, "
-                  f"{len(agent.messages)} 条历史消息)")
+            print(f"(session '{session_name}' 已恢复, {len(agent.messages)} 条历史消息)")
 
     def show_scene():
         if hasattr(transport, "describe_scene"):
@@ -139,6 +136,7 @@ def run_chat(args) -> int:
 
     def look():
         from .scene_tools import dispatch
+
         res = dispatch(agent.target, "look_at_scene", {})
         print(f"📷 {res.get('path') if res.get('ok') else res.get('error')}")
 
@@ -147,15 +145,23 @@ def run_chat(args) -> int:
             print("(未指定 --session, 无处可存)")
             return
         from .session import save_session
+
         print(f"(已存到 {save_session(session_name, 'chat', agent, transport)})")
 
-    banner = (f"CindraChat [{args.backend}] -- describe the scene you want.\n"
-              "Commands: /scene, /look, /save, /reset, /quit.\n")
-    rc = _repl(agent, banner,
-               {"/scene": show_scene, "/look": look, "/save": save_now},
-               once=args.once, after_send=show_scene)
+    banner = (
+        f"CindraChat [{args.backend}] -- describe the scene you want.\n"
+        "Commands: /scene, /look, /save, /reset, /quit.\n"
+    )
+    rc = _repl(
+        agent,
+        banner,
+        {"/scene": show_scene, "/look": look, "/save": save_now},
+        once=args.once,
+        after_send=show_scene,
+    )
     if session_name:
         from .session import save_session
+
         save_session(session_name, "chat", agent, transport)
     return rc
 
@@ -167,6 +173,7 @@ def run_docs(args) -> int:
 
     from .docs_agent import CindraDocsAgent
     from .docs_index import build_index
+
     try:
         index = build_index(args.index)
     except Exception as e:  # noqa: BLE001
@@ -182,8 +189,10 @@ def run_docs(args) -> int:
         for f, n in files.items():
             print(f"  - {f} ({n} chunks)")
 
-    banner = (f"CindraDocs [{args.index}] -- ask UE5 questions from local docs.\n"
-              "Commands: /topics, /reset, /quit.\n")
+    banner = (
+        f"CindraDocs [{args.index}] -- ask UE5 questions from local docs.\n"
+        "Commands: /topics, /reset, /quit.\n"
+    )
     return _repl(agent, banner, {"/topics": show_topics}, once=args.once)
 
 
@@ -194,6 +203,7 @@ def run_code(args) -> int:
 
     from .code_agent import CindraCodeAgent
     from .project_index import SAMPLE_PROJECT, build_project_index
+
     root = args.project or SAMPLE_PROJECT
     try:
         index = build_project_index(root)
@@ -209,8 +219,10 @@ def run_code(args) -> int:
             print(f"  - [{s['kind']}] {s['name']}{parent}  ({s['file']})")
 
     note = "sample project" if root == SAMPLE_PROJECT else root
-    banner = (f"CindraCode [{note}] -- describe the UE C++ feature to build.\n"
-              "Commands: /symbols, /reset, /quit.\n")
+    banner = (
+        f"CindraCode [{note}] -- describe the UE C++ feature to build.\n"
+        "Commands: /symbols, /reset, /quit.\n"
+    )
     return _repl(agent, banner, {"/symbols": show_symbols}, once=args.once)
 
 
@@ -221,18 +233,19 @@ def run_blueprint(args) -> int:
 
     from .blueprint_agent import CindraBlueprintAgent
     from .blueprint_transport import MockBlueprintTransport, UEBlueprintTransport
-    transport = (UEBlueprintTransport() if args.backend == "ue"
-                 else MockBlueprintTransport())
+
+    transport = UEBlueprintTransport() if args.backend == "ue" else MockBlueprintTransport()
     agent = CindraBlueprintAgent(transport, verbose=not args.quiet)
 
     def show_graph():
         if hasattr(transport, "describe_graph"):
             print("\n" + transport.describe_graph())
 
-    banner = (f"CindraBlueprint [{args.backend}] -- describe Blueprint logic.\n"
-              "Commands: /graph, /reset, /quit.\n")
-    return _repl(agent, banner, {"/graph": show_graph},
-                 once=args.once, after_send=show_graph)
+    banner = (
+        f"CindraBlueprint [{args.backend}] -- describe Blueprint logic.\n"
+        "Commands: /graph, /reset, /quit.\n"
+    )
+    return _repl(agent, banner, {"/graph": show_graph}, once=args.once, after_send=show_graph)
 
 
 def run_pcg(args) -> int:
@@ -256,52 +269,79 @@ def run_pcg(args) -> int:
                 # 不静默吞: --context-scene 写错 JSON 时用户需要知道,
                 # 否则表现是"传了场景但 agent 看不到"
                 print(f"context-scene 解析失败, 已忽略: {exc}", file=sys.stderr)
-        ctx = {"scene_actors": [
-            {"name": a["name"], "location": a["location"],
-             "rotation": a.get("rotation", [0, 0, 0]),
-             "scale": a.get("scale", [1, 1, 1])}
-            for a in scene.actors.values()
-        ]}
+        ctx = {
+            "scene_actors": [
+                {
+                    "name": a["name"],
+                    "location": a["location"],
+                    "rotation": a.get("rotation", [0, 0, 0]),
+                    "scale": a.get("scale", [1, 1, 1]),
+                }
+                for a in scene.actors.values()
+            ]
+        }
         agent.pcg_graph._context = ctx
 
     def show_result():
         print("\n" + agent.pcg_graph.render())
         print(agent.pcg_graph.render_stats())
 
-    banner = ("CindraPCG —— 用自然语言描述程序化生成规则, "
-              "我帮你搭 UE5.7 PCG 图并执行。\n"
-              "命令: /graph 看当前图, /result 看俯视图+统计, "
-              "/reset 清空对话和图, /quit 退出。\n")
+    banner = (
+        "CindraPCG —— 用自然语言描述程序化生成规则, "
+        "我帮你搭 UE5.7 PCG 图并执行。\n"
+        "命令: /graph 看当前图, /result 看俯视图+统计, "
+        "/reset 清空对话和图, /quit 退出。\n"
+    )
 
     def reset():
         agent.messages.clear()
         agent.pcg_graph.clear()
 
-    return _repl(agent, banner, {# 之前这里是 "\n" + list_graph(), 而 list_graph() 返回 dict ——
-# /graph 一敲就 TypeError。list_graph 是给 agent/MCP 用的结构化数据,
-# 人看的应该用 render_stats()。
-                                 "/graph": lambda: print("\n" + agent.pcg_graph.render_stats()),
-                                 "/result": show_result, "/reset": reset},
-                 once=args.once, after_send=show_result)
+    return _repl(
+        agent,
+        banner,
+        {  # 之前这里是 "\n" + list_graph(), 而 list_graph() 返回 dict ——
+            # /graph 一敲就 TypeError。list_graph 是给 agent/MCP 用的结构化数据,
+            # 人看的应该用 render_stats()。
+            "/graph": lambda: print("\n" + agent.pcg_graph.render_stats()),
+            "/result": show_result,
+            "/reset": reset,
+        },
+        once=args.once,
+        after_send=show_result,
+    )
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Cindra-clone —— 自然语言操控 UE5")
-    p.add_argument("--mode", choices=["chat", "docs", "code", "blueprint", "pcg"],
-                   default="chat",
-                   help="chat=scene editing, docs=UE docs RAG, code=UE C++, "
-                        "blueprint=Blueprint graph, cine=cinematics "
-                        "(Sequencer + Movie Render Queue)")
-    p.add_argument("--backend", choices=["mock", "ue"], default="mock",
-                   help="[chat/blueprint] mock=memory backend, ue=real UE")
-    p.add_argument("--index", choices=["lexical", "embed"], default="lexical",
-                   help="[docs] lexical=offline keyword search, embed=vector search")
-    p.add_argument("--project", metavar="DIR",
-                   help="[code] UE 工程根目录, 不给则用自带示例工程")
+    p.add_argument(
+        "--mode",
+        choices=["chat", "docs", "code", "blueprint", "pcg"],
+        default="chat",
+        help="chat=scene editing, docs=UE docs RAG, code=UE C++, "
+        "blueprint=Blueprint graph, cine=cinematics "
+        "(Sequencer + Movie Render Queue)",
+    )
+    p.add_argument(
+        "--backend",
+        choices=["mock", "ue"],
+        default="mock",
+        help="[chat/blueprint] mock=memory backend, ue=real UE",
+    )
+    p.add_argument(
+        "--index",
+        choices=["lexical", "embed"],
+        default="lexical",
+        help="[docs] lexical=offline keyword search, embed=vector search",
+    )
+    p.add_argument("--project", metavar="DIR", help="[code] UE 工程根目录, 不给则用自带示例工程")
     p.add_argument("--once", metavar="MSG", help="执行单条指令/问题后退出")
     p.add_argument("--quiet", action="store_true", help="不打印工具调用细节")
-    p.add_argument("--context-scene", metavar="JSON",
-                   help="[pcg] pre-load mock scene actors as PCG input (JSON list)")
+    p.add_argument(
+        "--context-scene",
+        metavar="JSON",
+        help="[pcg] pre-load mock scene actors as PCG input (JSON list)",
+    )
     args = p.parse_args(argv)
 
     if args.once and args.once_file:
@@ -313,9 +353,13 @@ def main(argv=None) -> int:
             print(f"Failed to read --once-file: {e}", file=sys.stderr)
             return 2
 
-    runners = {"chat": run_chat, "docs": run_docs,
-               "code": run_code, "blueprint": run_blueprint,
-               "pcg": run_pcg}
+    runners = {
+        "chat": run_chat,
+        "docs": run_docs,
+        "code": run_code,
+        "blueprint": run_blueprint,
+        "pcg": run_pcg,
+    }
     return runners[args.mode](args)
 
 

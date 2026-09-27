@@ -10,6 +10,7 @@ mock 场景: 全量 actor dict 存盘, 恢复时重建 MockScene —— mock 也
 
 自检: python3 -m cindra.session
 """
+
 from __future__ import annotations
 
 import json
@@ -34,8 +35,7 @@ def _stub_images(messages: list[dict]) -> list[dict]:
                 continue
             for i, blk in enumerate(inner):
                 if isinstance(blk, dict) and blk.get("type") == "image":
-                    inner[i] = {"type": "text",
-                                "text": "(历史截图, 已随会话存档省略)"}
+                    inner[i] = {"type": "text", "text": "(历史截图, 已随会话存档省略)"}
     return out
 
 
@@ -49,8 +49,7 @@ def save_session(name: str, mode: str, agent: Any, transport: Any) -> str:
     manifest: dict = {}
     scene = getattr(transport, "scene", None)
     if scene is not None:
-        manifest = {"kind": "mock", "actors": scene.actors,
-                    "camera": scene.camera}
+        manifest = {"kind": "mock", "actors": scene.actors, "camera": scene.camera}
     else:
         try:
             manifest = {"kind": "real", "list": transport.call("cnd_list")}
@@ -64,8 +63,7 @@ def save_session(name: str, mode: str, agent: Any, transport: Any) -> str:
     }
     path = session_path(name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=1),
-                    encoding="utf-8")
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     return str(path)
 
 
@@ -112,6 +110,7 @@ def _selfcheck() -> None:
         with um.patch.object(Path, "home", return_value=Path(td)):  # noqa: SIM117
             # 猴补 SESSIONS_DIR 依赖的 home —— 模块级常量已求值, 直接补常量
             import cindra.session as sess
+
             old = sess.SESSIONS_DIR
             sess.SESSIONS_DIR = Path(td) / "sessions"
             try:
@@ -121,13 +120,26 @@ def _selfcheck() -> None:
                 a = _Agent()
                 a.messages = [
                     {"role": "user", "content": "放两个东西"},
-                    {"role": "user", "content": [
-                        {"type": "tool_result", "tool_use_id": "x",
-                         "content": [
-                             {"type": "text", "text": "{}"},
-                             {"type": "image", "source": {
-                                 "type": "base64", "media_type": "image/png",
-                                 "data": "AAAA"}}]}]},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "x",
+                                "content": [
+                                    {"type": "text", "text": "{}"},
+                                    {
+                                        "type": "image",
+                                        "source": {
+                                            "type": "base64",
+                                            "media_type": "image/png",
+                                            "data": "AAAA",
+                                        },
+                                    },
+                                ],
+                            }
+                        ],
+                    },
                 ]
                 p = sess.save_session("t1", "chat", a, t)
                 assert Path(p).is_file()
@@ -142,8 +154,7 @@ def _selfcheck() -> None:
                 print("[2/3] load_session 场景+消息恢复 ✓")
 
                 inner = a2.messages[1]["content"][0]["content"]
-                assert all(b.get("type") != "image" for b in inner), \
-                    "图片应存为 stub"
+                assert all(b.get("type") != "image" for b in inner), "图片应存为 stub"
                 assert not sess.load_session("nope", a2, t2)
                 assert sess.list_sessions() == ["t1"]
                 ok += 1

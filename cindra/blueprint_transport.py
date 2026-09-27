@@ -10,6 +10,7 @@
 CindraBlueprint 是四功能里最难、最具护城河的一块, 因为它要在 UE 侧真正操作
 BlueprintGraph。下面 UE_BP_HELPER_NOTE 写清了真后端的接法与卡点。
 """
+
 from __future__ import annotations
 
 import json
@@ -78,9 +79,9 @@ class UEBlueprintTransport:
     ue_plugin/CindraEditorPanel/Source/CindraBlueprintBridge/。
     """
 
-    def __init__(self, host: str = "239.0.0.1", port: int = 6766,
-                 client=None) -> None:
+    def __init__(self, host: str = "239.0.0.1", port: int = 6766, client=None) -> None:
         from .transport import RemoteExecClient
+
         self.client = client or RemoteExecClient(host, port)
         self._injected = False
         self._probed = False
@@ -90,6 +91,7 @@ class UEBlueprintTransport:
         import json as _json
 
         from .ue_helpers import HELPER_MODULES
+
         if not self._injected:
             self.client.exec(HELPER_MODULES["bp"], mode="ExecuteFile")
             self._injected = True
@@ -103,13 +105,14 @@ class UEBlueprintTransport:
 
     def call(self, func: str, **kwargs: Any) -> dict:
         import pprint
+
         try:
             err = self._ensure()
             if err is not None:
                 return err
             args = ", ".join(
-                f"{k}={pprint.pformat(v, width=120, compact=True)}"
-                for k, v in kwargs.items())
+                f"{k}={pprint.pformat(v, width=120, compact=True)}" for k, v in kwargs.items()
+            )
             raw = self.client.exec(f"print({func}({args}))")
             return json.loads(raw)
         except Exception as e:  # noqa: BLE001
@@ -119,5 +122,4 @@ class UEBlueprintTransport:
         res = self.call("bp_list")
         if not res.get("ok"):
             return f"(无法读取真图: {res.get('error')})"
-        return f"真蓝图图: {len(res.get('nodes', []))} 节点, " \
-               f"{len(res.get('links', []))} 连线"
+        return f"真蓝图图: {len(res.get('nodes', []))} 节点, {len(res.get('links', []))} 连线"

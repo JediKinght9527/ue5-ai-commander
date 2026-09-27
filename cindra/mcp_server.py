@@ -28,6 +28,8 @@ from .registry import ToolRegistry, ToolSpec, specs_from_tools
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "cindra"
+
+
 # 版本单一事实源: 从已安装的包元数据读, 读不到再回落到源码树里的 pyproject。
 # 之前这里硬编码 "1.0.0", 而包版本是 0.3.0 —— MCP 客户端 initialize 时
 # 拿到的是错版本号, 和 CHANGELOG / tag 全对不上。
@@ -85,9 +87,7 @@ def _h_list_symbols(args: dict, state) -> dict:
 def _h_blueprint(args: dict, state) -> dict:
     from . import blueprint_tools
 
-    return blueprint_tools.dispatch(
-        state.blueprint_transport, args.pop("_tool_name"), args
-    )
+    return blueprint_tools.dispatch(state.blueprint_transport, args.pop("_tool_name"), args)
 
 
 def _h_pcg(args: dict, state) -> dict:
@@ -107,9 +107,7 @@ def _h_pie(args: dict, state) -> dict:
 
     # PIE 在 mock 后端走 MockPIESession（能模拟启动日志），
     # 在真 UE 后端走 chat transport 的 console command。dispatch 两者都认。
-    target = (
-        state.chat_transport if state.backend == "ue" else pie_tools.get_mock_session()
-    )
+    target = state.chat_transport if state.backend == "ue" else pie_tools.get_mock_session()
     return pie_tools.dispatch(target, args.pop("_tool_name"), args)
 
 
@@ -292,9 +290,7 @@ def _build_registry() -> ToolRegistry:
     reg.extend(specs_from_tools("Chat", "chat", scene_tools.TOOLS, _h_chat))
     reg.extend(specs_from_tools("Docs", "docs", docs_tools.TOOLS, _h_docs))
     reg.extend(specs_from_tools("Code", "code", code_tools.TOOLS, _h_code))
-    reg.extend(
-        specs_from_tools("Blueprint", "blueprint", blueprint_tools.TOOLS, _h_blueprint)
-    )
+    reg.extend(specs_from_tools("Blueprint", "blueprint", blueprint_tools.TOOLS, _h_blueprint))
     reg.extend(specs_from_tools("PCG", "pcg", pcg_tools.TOOLS, _h_pcg))
     reg.extend(
         specs_from_tools("Cine", "cine", cine_tools.TOOLS, _h_cine),
@@ -634,9 +630,7 @@ def _selfcheck() -> int:
         _handle_initialize(1)
         out = buf.getvalue().strip()
         resp = json.loads(out)
-        assert resp["id"] == 1 and "serverInfo" in resp["result"], (
-            f"initialize 失败: {resp}"
-        )
+        assert resp["id"] == 1 and "serverInfo" in resp["result"], f"initialize 失败: {resp}"
         print("✅ MCP initialize: server_info 返回正确")
 
         # 2) tools/list
@@ -671,9 +665,7 @@ def _selfcheck() -> int:
         assert result.get("ok") and len(result.get("node_types", {})) >= 15, (
             f"list_pcg_node_types 失败: {result}"
         )
-        print(
-            f"✅ MCP tools/call (list_pcg_node_types): {len(result['node_types'])} 种节点"
-        )
+        print(f"✅ MCP tools/call (list_pcg_node_types): {len(result['node_types'])} 种节点")
 
         # 4) tools/call — 实际建图+执行
         buf = io.StringIO()
@@ -708,9 +700,7 @@ def _selfcheck() -> int:
         out = buf.getvalue().strip()
         resp = json.loads(out)
         result = json.loads(resp["result"]["content"][0]["text"])
-        assert result.get("ok") and result.get("action") == "spawn", (
-            f"spawn_actor 失败: {result}"
-        )
+        assert result.get("ok") and result.get("action") == "spawn", f"spawn_actor 失败: {result}"
         print(f"✅ MCP tools/call (spawn_actor): {result['name']}")
 
         # 6) search_docs 调一次
@@ -754,9 +744,7 @@ def _selfcheck() -> int:
         resp = json.loads(out)
         result = json.loads(resp["result"]["content"][0]["text"])
         # ue backend 没连真引擎时会返回错误, 但 dispatch 本身不崩
-        print(
-            f"✅ MCP tools/call (backend=ue): {result.get('ok', result.get('error', 'unknown'))}"
-        )
+        print(f"✅ MCP tools/call (backend=ue): {result.get('ok', result.get('error', 'unknown'))}")
         # 复位到 mock: 上面那次调用把全局 _state.backend 改成了 ue,
         # 不复位的话后面的断言会带着 ue backend 跑, 表现为
         # "unknown func: cnd_console" 这种看不懂的失败。
@@ -796,9 +784,7 @@ def _selfcheck() -> int:
     launched = dispatch_tool("launch_pie", {})
     assert launched.get("ok"), f"launch_pie 失败: {launched}"
     logged = dispatch_tool("read_pie_log", {"lines": 5})
-    assert logged.get("ok") and logged.get("returned", 0) >= 0, (
-        f"read_pie_log 失败: {logged}"
-    )
+    assert logged.get("ok") and logged.get("returned", 0) >= 0, f"read_pie_log 失败: {logged}"
     stopped = dispatch_tool("stop_pie", {})
     assert stopped.get("ok"), f"stop_pie 失败: {stopped}"
     print("✅ PIE 接线: launch → read_pie_log → stop 走通")

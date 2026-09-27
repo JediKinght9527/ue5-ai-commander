@@ -5,6 +5,7 @@ MockCineTransport 同时持有 CineModel + MockScene: 序列操作打到模型,
 故事板直接"拍"到。真后端直接复用 RemoteExecTransport (cnd_seq_* 注入源
 在 ue_helpers/cine.py, FUNC_TO_MODULE 已注册), 场景与序列共用一条连接。
 """
+
 from __future__ import annotations
 
 import json
@@ -31,5 +32,6 @@ class MockCineTransport:
 
     def describe_scene(self) -> str:
         seqs = sorted(self.model.sequences)
-        return (f"序列: {', '.join(seqs) if seqs else '(无)'}; "
-                f"场景 {len(self.scene.actors)} 个 Actor")
+        return (
+            f"序列: {', '.join(seqs) if seqs else '(无)'}; 场景 {len(self.scene.actors)} 个 Actor"
+        )

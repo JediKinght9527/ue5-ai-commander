@@ -680,11 +680,7 @@ def _collect_outputs(nodes: dict, links: list) -> list[dict]:
                 and pin["type_label"] == "point_cloud"
                 and ((nid, pin["name"]) not in consumed or node.get("cls") == "spawn")
             ):
-                pc = (
-                    cache
-                    if isinstance(cache, PointCloud)
-                    else PointCloud(cache.get("points", []))
-                )
+                pc = cache if isinstance(cache, PointCloud) else PointCloud(cache.get("points", []))
                 outputs.append(
                     {
                         "node_id": nid,
@@ -704,9 +700,7 @@ def _collect_outputs(nodes: dict, links: list) -> list[dict]:
 # ═══════════════════════════════════════════════════════════════
 
 
-def _exec_input(
-    node: dict, params: dict, scene_actors: list, global_seed: int = 42
-) -> dict:
+def _exec_input(node: dict, params: dict, scene_actors: list, global_seed: int = 42) -> dict:
     """执行输入节点: get_actor_data / landscape_input / volume_input / spline_input。"""
     ntype = node["type"]
 
@@ -776,9 +770,7 @@ def _exec_input(
     return {"type": "error", "error": f"未知输入节点: {ntype}"}
 
 
-def _exec_sampling(
-    node: dict, params: dict, src_data: dict | None, global_seed: int = 42
-) -> dict:
+def _exec_sampling(node: dict, params: dict, src_data: dict | None, global_seed: int = 42) -> dict:
     """执行采样节点。"""
     if src_data is None:
         return {"type": "error", "error": "缺少上游输入数据"}
@@ -1328,8 +1320,10 @@ def _selfcheck() -> int:
         assert r["ok"] and r["outputs"], r
         # 比原始采样点而不是 stats 汇总: stats 里的 count/x_range 可能恰好相同,
         # 掩盖"点其实没动"的情况（第一版修复就栽在这）。
-        return [(round(p["location"][0], 6), round(p["location"][1], 6))
-                for p in gg.nodes["s"]["cache"]["points"]]
+        return [
+            (round(p["location"][0], 6), round(p["location"][1], 6))
+            for p in gg.nodes["s"]["cache"]["points"]
+        ]
 
     p1, p2, p1_again = _seeded(1), _seeded(2), _seeded(1)
     assert p1 == p1_again, "同一种子必须可复现"

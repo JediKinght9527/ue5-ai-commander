@@ -18,6 +18,7 @@ UE 里这对应 UEdGraph/UK2Node/UEdGraphPin —— 真后端 (UEBlueprintTransp
   - data 连线两端类型需一致 (wildcard 除外)
   - 一个 input data 引脚只能有一条入线 (UE 行为); exec output 同理单出
 """
+
 from __future__ import annotations
 
 import json
@@ -28,30 +29,41 @@ from typing import Any
 _NODE_TEMPLATES: dict[str, list[tuple]] = {
     # 事件节点: 只有一个 exec 输出 (执行流起点)
     "Event_BeginPlay": [("then", "output", "exec", None)],
-    "Event_Tick": [("then", "output", "exec", None),
-                   ("DeltaSeconds", "output", "data", "float")],
+    "Event_Tick": [("then", "output", "exec", None), ("DeltaSeconds", "output", "data", "float")],
     # 流程控制
-    "Branch": [("exec", "input", "exec", None),
-               ("Condition", "input", "data", "bool"),
-               ("True", "output", "exec", None),
-               ("False", "output", "exec", None)],
-    "Sequence": [("exec", "input", "exec", None),
-                 ("Then0", "output", "exec", None),
-                 ("Then1", "output", "exec", None)],
+    "Branch": [
+        ("exec", "input", "exec", None),
+        ("Condition", "input", "data", "bool"),
+        ("True", "output", "exec", None),
+        ("False", "output", "exec", None),
+    ],
+    "Sequence": [
+        ("exec", "input", "exec", None),
+        ("Then0", "output", "exec", None),
+        ("Then1", "output", "exec", None),
+    ],
     # 常用函数
-    "PrintString": [("exec", "input", "exec", None),
-                    ("InString", "input", "data", "string"),
-                    ("then", "output", "exec", None)],
-    "Delay": [("exec", "input", "exec", None),
-              ("Duration", "input", "data", "float"),
-              ("Completed", "output", "exec", None)],
+    "PrintString": [
+        ("exec", "input", "exec", None),
+        ("InString", "input", "data", "string"),
+        ("then", "output", "exec", None),
+    ],
+    "Delay": [
+        ("exec", "input", "exec", None),
+        ("Duration", "input", "data", "float"),
+        ("Completed", "output", "exec", None),
+    ],
     # 比较/运算 (纯数据节点, 无 exec)
-    "Greater_FloatFloat": [("A", "input", "data", "float"),
-                           ("B", "input", "data", "float"),
-                           ("ReturnValue", "output", "data", "bool")],
-    "Add_FloatFloat": [("A", "input", "data", "float"),
-                       ("B", "input", "data", "float"),
-                       ("ReturnValue", "output", "data", "float")],
+    "Greater_FloatFloat": [
+        ("A", "input", "data", "float"),
+        ("B", "input", "data", "float"),
+        ("ReturnValue", "output", "data", "bool"),
+    ],
+    "Add_FloatFloat": [
+        ("A", "input", "data", "float"),
+        ("B", "input", "data", "float"),
+        ("ReturnValue", "output", "data", "float"),
+    ],
 }
 
 
@@ -59,8 +71,7 @@ def node_templates() -> dict[str, list[dict]]:
     """对外暴露可用节点模板 (给 agent 看有哪些节点可加)。"""
     out = {}
     for name, pins in _NODE_TEMPLATES.items():
-        out[name] = [{"name": p[0], "direction": p[1], "kind": p[2],
-                      "type": p[3]} for p in pins]
+        out[name] = [{"name": p[0], "direction": p[1], "kind": p[2], "type": p[3]} for p in pins]
     return out
 
 
@@ -85,21 +96,18 @@ class BlueprintGraph:
         self.parent_class = parent_class
         self.nodes, self.links, self.variables = {}, [], {}
         self._counter = 0
-        return json.dumps({"ok": True, "action": "create", "path": path,
-                           "parent": parent_class})
+        return json.dumps({"ok": True, "action": "create", "path": path, "parent": parent_class})
 
     def bp_open(self, path) -> str:
         self.asset_path = path
-        return json.dumps({"ok": True, "action": "open", "path": path,
-                           "nodes": len(self.nodes)})
+        return json.dumps({"ok": True, "action": "open", "path": path, "nodes": len(self.nodes)})
 
     def bp_compile(self) -> str:
         """mock 编译: 真侧是 FKismetEditorUtilities::CompileBlueprint。
         这里做廉价等价检查: 每个带 exec 输入的节点必须从某个事件可达
         (孤儿执行节点 = 真编译的 warning/死代码)。"""
         reachable: set[str] = set()
-        frontier = [nid for nid, n in self.nodes.items()
-                    if n["type"].startswith("Event_")]
+        frontier = [nid for nid, n in self.nodes.items() if n["type"].startswith("Event_")]
         reachable.update(frontier)
         while frontier:
             cur = frontier.pop()
@@ -109,39 +117,54 @@ class BlueprintGraph:
                     frontier.append(ln["to_node"])
         orphans = []
         for nid, n in self.nodes.items():
-            has_exec_in = any(p["kind"] == "exec" and p["direction"] == "input"
-                              for p in n["pins"])
+            has_exec_in = any(p["kind"] == "exec" and p["direction"] == "input" for p in n["pins"])
             if has_exec_in and nid not in reachable:
                 orphans.append(nid)
         warnings = [f"节点 {nid} 不可达 (没接到任何事件流)" for nid in orphans]
-        return json.dumps({"ok": True, "action": "compile", "errors": 0,
-                           "warnings": len(warnings), "messages": warnings})
+        return json.dumps(
+            {
+                "ok": True,
+                "action": "compile",
+                "errors": 0,
+                "warnings": len(warnings),
+                "messages": warnings,
+            }
+        )
 
     def bp_add_node(self, node_type, name=None) -> str:
         if node_type not in _NODE_TEMPLATES:
-            return json.dumps({"ok": False,
-                               "error": f"未知节点类型: {node_type}. "
-                               f"可用: {', '.join(_NODE_TEMPLATES)}"})
+            return json.dumps(
+                {
+                    "ok": False,
+                    "error": f"未知节点类型: {node_type}. 可用: {', '.join(_NODE_TEMPLATES)}",
+                }
+            )
         self._counter += 1
         nid = name or f"{node_type}_{self._counter}"
         base, i = nid, 1
         while nid in self.nodes:
             i += 1
             nid = f"{base}_{i}"
-        pins = [{"name": p[0], "direction": p[1], "kind": p[2], "type": p[3]}
-                for p in _NODE_TEMPLATES[node_type]]
+        pins = [
+            {"name": p[0], "direction": p[1], "kind": p[2], "type": p[3]}
+            for p in _NODE_TEMPLATES[node_type]
+        ]
         self.nodes[nid] = {"id": nid, "type": node_type, "pins": pins}
-        return json.dumps({"ok": True, "action": "add_node", "id": nid,
-                           "type": node_type,
-                           "pins": [p["name"] for p in pins]})
+        return json.dumps(
+            {
+                "ok": True,
+                "action": "add_node",
+                "id": nid,
+                "type": node_type,
+                "pins": [p["name"] for p in pins],
+            }
+        )
 
     def bp_add_variable(self, name, var_type="float", default=None) -> str:
         if name in self.variables:
             return json.dumps({"ok": False, "error": f"变量已存在: {name}"})
-        self.variables[name] = {"name": name, "type": var_type,
-                                "default": default}
-        return json.dumps({"ok": True, "action": "add_variable",
-                           "name": name, "type": var_type})
+        self.variables[name] = {"name": name, "type": var_type, "default": default}
+        return json.dumps({"ok": True, "action": "add_variable", "name": name, "type": var_type})
 
     def _find_pin(self, node_id, pin_name) -> tuple[dict[str, Any] | None, str | None]:
         """找引脚。返回 (引脚, None) 或 (None, 错误原因)。"""
@@ -164,50 +187,71 @@ class BlueprintGraph:
             return json.dumps({"ok": False, "error": err or "引脚不存在"})
         # 方向: 必须 output -> input
         if src["direction"] != "output" or dst["direction"] != "input":
-            return json.dumps({"ok": False,
-                               "error": "连线必须从 output 引脚到 input 引脚"})
+            return json.dumps({"ok": False, "error": "连线必须从 output 引脚到 input 引脚"})
         # 类别: exec 接 exec, data 接 data
         if src["kind"] != dst["kind"]:
-            return json.dumps({"ok": False,
-                               "error": f"引脚类别不匹配: {src['kind']} -> {dst['kind']}"})
+            return json.dumps(
+                {"ok": False, "error": f"引脚类别不匹配: {src['kind']} -> {dst['kind']}"}
+            )
         # data 类型一致
         if src["kind"] == "data" and src["type"] != dst["type"]:
-            return json.dumps({"ok": False,
-                               "error": f"数据类型不匹配: {src['type']} -> {dst['type']}"})
+            return json.dumps(
+                {"ok": False, "error": f"数据类型不匹配: {src['type']} -> {dst['type']}"}
+            )
         # 单入: 一个 input 引脚 (无论 exec/data) 只能有一条入线
         for ln in self.links:
             if ln["to_node"] == to_node and ln["to_pin"] == to_pin:
-                return json.dumps({"ok": False,
-                                   "error": f"{to_node}.{to_pin} 已有入线, "
-                                   "一个输入引脚只能连一条"})
+                return json.dumps(
+                    {"ok": False, "error": f"{to_node}.{to_pin} 已有入线, 一个输入引脚只能连一条"}
+                )
         # exec output 单出 (一个执行输出只能去一个地方)
         if src["kind"] == "exec":
             for ln in self.links:
                 if ln["from_node"] == from_node and ln["from_pin"] == from_pin:
-                    return json.dumps({"ok": False,
-                                       "error": f"{from_node}.{from_pin} 执行输出已连线, "
-                                       "exec 输出只能连一条"})
-        self.links.append({"from_node": from_node, "from_pin": from_pin,
-                           "to_node": to_node, "to_pin": to_pin})
-        return json.dumps({"ok": True, "action": "connect",
-                           "link": f"{from_node}.{from_pin} -> {to_node}.{to_pin}"})
+                    return json.dumps(
+                        {
+                            "ok": False,
+                            "error": f"{from_node}.{from_pin} 执行输出已连线, exec 输出只能连一条",
+                        }
+                    )
+        self.links.append(
+            {"from_node": from_node, "from_pin": from_pin, "to_node": to_node, "to_pin": to_pin}
+        )
+        return json.dumps(
+            {
+                "ok": True,
+                "action": "connect",
+                "link": f"{from_node}.{from_pin} -> {to_node}.{to_pin}",
+            }
+        )
 
     def bp_delete_node(self, node_id) -> str:
         if node_id not in self.nodes:
             return json.dumps({"ok": False, "error": f"节点不存在: {node_id}"})
         del self.nodes[node_id]
         before = len(self.links)
-        self.links = [ln for ln in self.links
-                      if ln["from_node"] != node_id and ln["to_node"] != node_id]
-        return json.dumps({"ok": True, "action": "delete_node", "id": node_id,
-                           "removed_links": before - len(self.links)})
+        self.links = [
+            ln for ln in self.links if ln["from_node"] != node_id and ln["to_node"] != node_id
+        ]
+        return json.dumps(
+            {
+                "ok": True,
+                "action": "delete_node",
+                "id": node_id,
+                "removed_links": before - len(self.links),
+            }
+        )
 
     def bp_list(self) -> str:
-        return json.dumps({"ok": True, "action": "list",
-                           "nodes": [{"id": n["id"], "type": n["type"]}
-                                     for n in self.nodes.values()],
-                           "links": self.links,
-                           "variables": list(self.variables.values())})
+        return json.dumps(
+            {
+                "ok": True,
+                "action": "list",
+                "nodes": [{"id": n["id"], "type": n["type"]} for n in self.nodes.values()],
+                "links": self.links,
+                "variables": list(self.variables.values()),
+            }
+        )
 
     def bp_clear(self) -> str:
         n = len(self.nodes)
@@ -221,8 +265,9 @@ class BlueprintGraph:
             return "(空蓝图图)"
         lines = ["蓝图事件图:"]
         if self.variables:
-            lines.append("  变量: " + ", ".join(
-                f"{v['name']}:{v['type']}" for v in self.variables.values()))
+            lines.append(
+                "  变量: " + ", ".join(f"{v['name']}:{v['type']}" for v in self.variables.values())
+            )
         lines.append("  节点:")
         for n in self.nodes.values():
             lines.append(f"    [{n['id']}] ({n['type']})")
@@ -231,8 +276,9 @@ class BlueprintGraph:
             lines.append("    (无)")
         for ln in self.links:
             arrow = "=>" if _is_exec_link(self, ln) else "->"
-            lines.append(f"    {ln['from_node']}.{ln['from_pin']} "
-                         f"{arrow} {ln['to_node']}.{ln['to_pin']}")
+            lines.append(
+                f"    {ln['from_node']}.{ln['from_pin']} {arrow} {ln['to_node']}.{ln['to_pin']}"
+            )
         return "\n".join(lines)
 
 
@@ -257,25 +303,21 @@ def _selfcheck() -> int:
     assert json.loads(g.bp_create("/Game/BP_Test", "Actor"))["ok"]
     for t in ("Event_BeginPlay", "Branch", "PrintString", "Greater_FloatFloat"):
         assert json.loads(g.bp_add_node(t))["ok"], t
-    assert json.loads(g.bp_connect("Event_BeginPlay_1", "then",
-                                   "Branch_2", "exec"))["ok"]
-    assert json.loads(g.bp_connect("Greater_FloatFloat_4", "ReturnValue",
-                                   "Branch_2", "Condition"))["ok"]
-    assert json.loads(g.bp_connect("Branch_2", "True",
-                                   "PrintString_3", "exec"))["ok"]
+    assert json.loads(g.bp_connect("Event_BeginPlay_1", "then", "Branch_2", "exec"))["ok"]
+    assert json.loads(g.bp_connect("Greater_FloatFloat_4", "ReturnValue", "Branch_2", "Condition"))[
+        "ok"
+    ]
+    assert json.loads(g.bp_connect("Branch_2", "True", "PrintString_3", "exec"))["ok"]
     ok += 1
     print("✅ 建图 4 节点 3 连线")
 
     # 2. 非法连线全部被拒: 类型不匹配 / 双入线 / exec 双出 / input->input
     g.bp_add_node("Add_FloatFloat")  # Add_FloatFloat_5
-    r = json.loads(g.bp_connect("Add_FloatFloat_5", "ReturnValue",
-                                "Branch_2", "Condition"))
+    r = json.loads(g.bp_connect("Add_FloatFloat_5", "ReturnValue", "Branch_2", "Condition"))
     assert not r["ok"] and "类型" in r["error"], "float->bool 应被拒"
-    r = json.loads(g.bp_connect("Event_BeginPlay_1", "then",
-                                "PrintString_3", "exec"))
+    r = json.loads(g.bp_connect("Event_BeginPlay_1", "then", "PrintString_3", "exec"))
     assert not r["ok"], "exec 双出应被拒 (BeginPlay.then 已连)"
-    r = json.loads(g.bp_connect("PrintString_3", "InString",
-                                "Branch_2", "Condition"))
+    r = json.loads(g.bp_connect("PrintString_3", "InString", "Branch_2", "Condition"))
     assert not r["ok"], "input->input 应被拒"
     ok += 1
     print("✅ 非法连线三连拒 (类型/双出/方向)")

@@ -10,6 +10,7 @@ v2: 连接层抽成 RemoteExecClient (蓝图 transport 复用同一条连接逻�
 注入源按命名空间懒加载 (见 ue_helpers 注册表) —— 首次调到某模块的函数
 才注入该模块, 单 blob 变多个小包, 易诊断也不怕撞消息体积上限。
 """
+
 from __future__ import annotations
 
 import json
@@ -50,8 +51,7 @@ class MockTransport:
     def viewport(self) -> dict:
         """视觉通道 (mock 版): ASCII 俯视图就是"截图"的离线替身。
         让 Mac 上就能全链路验证"agent 亲眼看场景再自我修正"的闭环。"""
-        return {"ok": True, "action": "viewport",
-                "view": self.scene.render_topdown()}
+        return {"ok": True, "action": "viewport", "view": self.scene.render_topdown()}
 
 
 class RemoteExecClient:
@@ -81,6 +81,7 @@ class RemoteExecClient:
         conn.start()
         # 连第一个广播自己的引擎节点
         import time
+
         for _ in range(300):
             if conn.remote_nodes:
                 break
@@ -95,8 +96,8 @@ class RemoteExecClient:
         self._ensure()
         assert self._conn is not None  # _ensure 连不上会 raise, 到这里必然有
         res = self._conn.run_command(
-            code, unattended=True,
-            exec_mode=mode)  # 'remote_execution' 的执行模式
+            code, unattended=True, exec_mode=mode
+        )  # 'remote_execution' 的执行模式
         if not res or not res.get("success"):
             raise RuntimeError(f"远程执行失败: {res}")
         # 引擎里函数 return 的 JSON 在 output 里; 取最后一行非空输出
@@ -116,8 +117,9 @@ class RemoteExecTransport:
     定义, 之后每次只发一行函数调用。
     """
 
-    def __init__(self, host: str = "239.0.0.1", port: int = 6766,
-                 client: RemoteExecClient | None = None) -> None:
+    def __init__(
+        self, host: str = "239.0.0.1", port: int = 6766, client: RemoteExecClient | None = None
+    ) -> None:
         self.client = client or RemoteExecClient(host, port)
         self._injected: set[str] = set()
 
@@ -144,8 +146,11 @@ class RemoteExecTransport:
     def describe_scene(self) -> str:
         res = self.call("cnd_list")
         actors = res.get("actors", [])
-        return f"场景里 {len(actors)} 个 Actor: " + ", ".join(
-            a["name"] for a in actors) if actors else "(空场景)"
+        return (
+            f"场景里 {len(actors)} 个 Actor: " + ", ".join(a["name"] for a in actors)
+            if actors
+            else "(空场景)"
+        )
 
     def viewport(self, width: int = 1280, height: int = 720) -> dict:
         """视觉通道 (真 UE 版): 请求视口截图 → 轮询文件落盘 → 返回图片路径。
@@ -159,8 +164,8 @@ class RemoteExecTransport:
         import tempfile
         import time
         import uuid
-        path = os.path.join(tempfile.gettempdir(),
-                            f"cindra_shot_{uuid.uuid4().hex[:8]}.png")
+
+        path = os.path.join(tempfile.gettempdir(), f"cindra_shot_{uuid.uuid4().hex[:8]}.png")
         res = self.call("cnd_screenshot", path=path, width=width, height=height)
         if not res.get("ok"):
             return res
@@ -170,10 +175,16 @@ class RemoteExecTransport:
             if os.path.exists(path):
                 size = os.path.getsize(path)
                 if size > 0 and size == last_size:  # 两次采样大小一致 = 写完
-                    return {"ok": True, "action": "viewport",
-                            "_image_path": path, "size_bytes": size}
+                    return {
+                        "ok": True,
+                        "action": "viewport",
+                        "_image_path": path,
+                        "size_bytes": size,
+                    }
                 last_size = size
             time.sleep(0.4)
-        return {"ok": False, "error":
-                "截图超时: 引擎 10s 内没写出文件。已知坑: 视口被藏起来时"
-                "不出图 —— 确认编辑器视口可见, 再重试 inspect_viewport。"}
+        return {
+            "ok": False,
+            "error": "截图超时: 引擎 10s 内没写出文件。已知坑: 视口被藏起来时"
+            "不出图 —— 确认编辑器视口可见, 再重试 inspect_viewport。",
+        }

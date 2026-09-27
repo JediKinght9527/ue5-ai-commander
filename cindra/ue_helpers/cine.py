@@ -8,7 +8,7 @@
 - 帧序列落盘 <Project>/Saved/Cindra/renders/<seq>/, cindra 侧轮询帧数稳定。
 """
 
-SOURCE = r'''
+SOURCE = r"""
 import json
 import os
 import unreal
@@ -200,4 +200,4 @@ def cnd_seq_render(sequence, out_dir=None, res=(1280, 720), samples=None):
     return json.dumps({"ok": True, "action": "seq_render", "pending": True,
                        "sequence": sequence, "out_dir": out,
                        "expected_frames": int(seq.get_playback_end())})
-'''
+"""

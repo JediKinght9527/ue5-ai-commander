@@ -4,6 +4,7 @@
 Messages API 和 OpenAI-compatible Chat Completions 都适配成这套结构, 让
 DeepSeek/GLM/OpenAI 这类兼容接口可以共用同一套 Cindra 工具循环。
 """
+
 from __future__ import annotations
 
 import json
@@ -53,19 +54,26 @@ class AnthropicProvider:
     def __init__(self, client: Any | None = None) -> None:
         if client is None:
             import anthropic
+
             client = anthropic.Anthropic()
         self.client = client
 
-    def create(self, *, model: str, system_prompt: str, tools: list[dict],
-               messages: list[dict], max_tokens: int) -> ModelResponse:
+    def create(
+        self,
+        *,
+        model: str,
+        system_prompt: str,
+        tools: list[dict],
+        messages: list[dict],
+        max_tokens: int,
+    ) -> ModelResponse:
         anthropic_tools = [dict(t) for t in tools]
         if anthropic_tools:
             anthropic_tools[-1] = {
                 **anthropic_tools[-1],
                 "cache_control": {"type": "ephemeral"},
             }
-        system = [{"type": "text", "text": system_prompt,
-                   "cache_control": {"type": "ephemeral"}}]
+        system = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
         resp = self.client.messages.create(
             model=model,
             max_tokens=max_tokens,
@@ -81,15 +89,21 @@ class AnthropicProvider:
 
 
 class OpenAICompatibleProvider:
-    def __init__(self, *, provider_name: str, api_key: str, base_url: str,
-                 model: str) -> None:
+    def __init__(self, *, provider_name: str, api_key: str, base_url: str, model: str) -> None:
         self.provider_name = provider_name
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
 
-    def create(self, *, model: str, system_prompt: str, tools: list[dict],
-               messages: list[dict], max_tokens: int) -> ModelResponse:
+    def create(
+        self,
+        *,
+        model: str,
+        system_prompt: str,
+        tools: list[dict],
+        messages: list[dict],
+        max_tokens: int,
+    ) -> ModelResponse:
         payload = {
             "model": self.model or model,
             "messages": _to_openai_messages(system_prompt, messages),
@@ -115,13 +129,10 @@ class OpenAICompatibleProvider:
         except error.HTTPError as e:
             detail = e.read().decode("utf-8", errors="replace")
             raise RuntimeError(
-                f"{self.provider_name} chat completion failed: "
-                f"HTTP {e.code}: {detail}"
+                f"{self.provider_name} chat completion failed: HTTP {e.code}: {detail}"
             ) from e
         except error.URLError as e:
-            raise RuntimeError(
-                f"{self.provider_name} chat completion failed: {e}"
-            ) from e
+            raise RuntimeError(f"{self.provider_name} chat completion failed: {e}") from e
 
         obj = json.loads(raw)
         choice = obj["choices"][0]
@@ -137,12 +148,14 @@ class OpenAICompatibleProvider:
                 parsed_args = json.loads(args) if isinstance(args, str) else args
             except json.JSONDecodeError:
                 parsed_args = {"_raw_arguments": args}
-            blocks.append(ModelBlock(
-                type="tool_use",
-                id=call.get("id", ""),
-                name=fn.get("name", ""),
-                input=parsed_args if isinstance(parsed_args, dict) else {},
-            ))
+            blocks.append(
+                ModelBlock(
+                    type="tool_use",
+                    id=call.get("id", ""),
+                    name=fn.get("name", ""),
+                    input=parsed_args if isinstance(parsed_args, dict) else {},
+                )
+            )
         finish = choice.get("finish_reason")
         stop_reason = "tool_use" if msg.get("tool_calls") or finish == "tool_calls" else "end_turn"
         return ModelResponse(content=blocks, stop_reason=stop_reason)
@@ -169,16 +182,18 @@ def build_provider(client: Any | None = None) -> Any:
 
 
 def provider_name() -> str:
-    explicit = (os.environ.get("CINDRA_MODEL_PROVIDER")
-                or os.environ.get("CINDRA_PROVIDER"))
+    explicit = os.environ.get("CINDRA_MODEL_PROVIDER") or os.environ.get("CINDRA_PROVIDER")
     if explicit:
         return _normalize_provider(explicit)
     if os.environ.get("ANTHROPIC_API_KEY"):
         return "anthropic"
     if os.environ.get("DEEPSEEK_API_KEY"):
         return "deepseek"
-    if (os.environ.get("ZAI_API_KEY") or os.environ.get("GLM_API_KEY")
-            or os.environ.get("BIGMODEL_API_KEY")):
+    if (
+        os.environ.get("ZAI_API_KEY")
+        or os.environ.get("GLM_API_KEY")
+        or os.environ.get("BIGMODEL_API_KEY")
+    ):
         return "glm"
     if os.environ.get("OPENROUTER_API_KEY"):
         return "openrouter"
@@ -206,9 +221,11 @@ def config_error() -> str | None:
     provider = provider_name()
     if provider == "anthropic":
         if not os.environ.get("ANTHROPIC_API_KEY"):
-            return ("请先设置 ANTHROPIC_API_KEY, 或设置 CINDRA_MODEL_PROVIDER="
-                    "deepseek/glm/openrouter/siliconflow/moonshot/"
-                    "dashscope/ark/openai 并提供对应 API key。")
+            return (
+                "请先设置 ANTHROPIC_API_KEY, 或设置 CINDRA_MODEL_PROVIDER="
+                "deepseek/glm/openrouter/siliconflow/moonshot/"
+                "dashscope/ark/openai 并提供对应 API key。"
+            )
         return None
 
     if not _api_key_for(provider):
@@ -224,8 +241,10 @@ def config_error() -> str | None:
         }
         return f"请先设置 {names.get(provider, 'CINDRA_API_KEY')}。"
     if not _model_for(provider):
-        return ("请设置 CINDRA_MODEL 指定 OpenAI-compatible 模型名 "
-                "(例如 OpenAI/Codex 账号可用的模型 id)。")
+        return (
+            "请设置 CINDRA_MODEL 指定 OpenAI-compatible 模型名 "
+            "(例如 OpenAI/Codex 账号可用的模型 id)。"
+        )
     return None
 
 
@@ -270,9 +289,12 @@ def _api_key_for(provider: str) -> str:
     if provider == "deepseek":
         return common or os.environ.get("DEEPSEEK_API_KEY", "")
     if provider == "glm":
-        return (common or os.environ.get("ZAI_API_KEY", "")
-                or os.environ.get("GLM_API_KEY", "")
-                or os.environ.get("BIGMODEL_API_KEY", ""))
+        return (
+            common
+            or os.environ.get("ZAI_API_KEY", "")
+            or os.environ.get("GLM_API_KEY", "")
+            or os.environ.get("BIGMODEL_API_KEY", "")
+        )
     if provider == "openrouter":
         return common or os.environ.get("OPENROUTER_API_KEY", "")
     if provider == "siliconflow":
@@ -293,8 +315,11 @@ def _model_for(provider: str) -> str:
     if provider == "deepseek":
         return common or os.environ.get("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
     if provider == "glm":
-        return (common or os.environ.get("ZAI_MODEL", "")
-                or os.environ.get("GLM_MODEL", DEFAULT_GLM_MODEL))
+        return (
+            common
+            or os.environ.get("ZAI_MODEL", "")
+            or os.environ.get("GLM_MODEL", DEFAULT_GLM_MODEL)
+        )
     if provider == "openrouter":
         return common or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
     if provider == "siliconflow":
@@ -318,12 +343,13 @@ def _base_url_for(provider: str) -> str:
         if common:
             return common
         if os.environ.get("BIGMODEL_API_KEY") and not os.environ.get("ZAI_API_KEY"):
-            return os.environ.get("BIGMODEL_BASE_URL",
-                                  "https://open.bigmodel.cn/api/paas/v4")
-        return (os.environ.get("ZAI_BASE_URL", "")
-                or os.environ.get("GLM_BASE_URL", "")
-                or os.environ.get("BIGMODEL_BASE_URL", "")
-                or "https://api.z.ai/api/paas/v4")
+            return os.environ.get("BIGMODEL_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+        return (
+            os.environ.get("ZAI_BASE_URL", "")
+            or os.environ.get("GLM_BASE_URL", "")
+            or os.environ.get("BIGMODEL_BASE_URL", "")
+            or "https://api.z.ai/api/paas/v4"
+        )
     if provider == "openrouter":
         return common or os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     if provider == "siliconflow":
@@ -331,7 +357,9 @@ def _base_url_for(provider: str) -> str:
     if provider == "moonshot":
         return common or os.environ.get("MOONSHOT_BASE_URL", "https://api.moonshot.cn/v1")
     if provider == "dashscope":
-        return common or os.environ.get("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        return common or os.environ.get(
+            "DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        )
     if provider == "ark":
         return common or os.environ.get("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
     return common or ""
@@ -357,7 +385,8 @@ def _to_openai_tool(tool: dict) -> dict:
         "function": {
             "name": tool["name"],
             "description": tool.get("description", ""),
-            "parameters": tool.get("input_schema") or {
+            "parameters": tool.get("input_schema")
+            or {
                 "type": "object",
                 "properties": {},
             },
@@ -380,15 +409,18 @@ def _to_openai_messages(system_prompt: str, messages: list[dict]) -> list[dict]:
                 if block.get("type") == "text" and block.get("text"):
                     text_parts.append(block["text"])
                 elif block.get("type") == "tool_use":
-                    tool_calls.append({
-                        "id": block["id"],
-                        "type": "function",
-                        "function": {
-                            "name": block["name"],
-                            "arguments": json.dumps(block.get("input") or {},
-                                                    ensure_ascii=False),
-                        },
-                    })
+                    tool_calls.append(
+                        {
+                            "id": block["id"],
+                            "type": "function",
+                            "function": {
+                                "name": block["name"],
+                                "arguments": json.dumps(
+                                    block.get("input") or {}, ensure_ascii=False
+                                ),
+                            },
+                        }
+                    )
             item: dict[str, Any] = {
                 "role": "assistant",
                 "content": "\n".join(text_parts) if text_parts else None,
@@ -401,42 +433,54 @@ def _to_openai_messages(system_prompt: str, messages: list[dict]) -> list[dict]:
             if block.get("type") == "tool_result":
                 inner = block.get("content", "")
                 if isinstance(inner, str):
-                    out.append({
-                        "role": "tool",
-                        "tool_call_id": block["tool_use_id"],
-                        "content": inner,
-                    })
+                    out.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": block["tool_use_id"],
+                            "content": inner,
+                        }
+                    )
                     continue
                 # v2: tool_result 可能是 [text, image...] 块列表 (视觉闭环)。
                 # OpenAI 的 tool 消息只能是文本 —— 文本部分照走 tool 消息;
                 # 图片: 视觉模型 (CINDRA_VISION=1) 走一条合成 user 消息带
                 # image_url; 非视觉模型诚实降级为文字说明, 不假装看过图。
-                texts = [b.get("text", "") for b in inner
-                         if b.get("type") == "text"]
+                texts = [b.get("text", "") for b in inner if b.get("type") == "text"]
                 images = [b for b in inner if b.get("type") == "image"]
-                out.append({
-                    "role": "tool",
-                    "tool_call_id": block["tool_use_id"],
-                    "content": "\n".join(texts) or "(见后续图片)",
-                })
+                out.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": block["tool_use_id"],
+                        "content": "\n".join(texts) or "(见后续图片)",
+                    }
+                )
                 if not images:
                     continue
                 if os.environ.get("CINDRA_VISION") == "1":
                     # 标注成 list[Any]: 里面既有纯文本块, 也有嵌套的
                     # image_url 结构, 不标的话推成 list[dict[str, str]]
                     # 之后 append 嵌套 dict 会报错
-                    parts: list[Any] = [{"type": "text",
-                                         "text": "(上一个工具返回的截图)"}]
+                    parts: list[Any] = [{"type": "text", "text": "(上一个工具返回的截图)"}]
                     for img in images:
                         src = img.get("source", {})
-                        parts.append({"type": "image_url", "image_url": {
-                            "url": "data:{};base64,{}".format(
-                                src.get("media_type", "image/png"),
-                                src.get("data", ""))}})
+                        parts.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": "data:{};base64,{}".format(
+                                        src.get("media_type", "image/png"), src.get("data", "")
+                                    )
+                                },
+                            }
+                        )
                     out.append({"role": "user", "content": parts})  # type: ignore[arg-type]
                 else:
-                    out.append({"role": "user", "content":
-                                f"(工具返回了 {len(images)} 张截图, "
-                                "但当前模型不支持看图; "
-                                "设 CINDRA_VISION=1 且换视觉模型可启用视觉闭环)"})
+                    out.append(
+                        {
+                            "role": "user",
+                            "content": f"(工具返回了 {len(images)} 张截图, "
+                            "但当前模型不支持看图; "
+                            "设 CINDRA_VISION=1 且换视觉模型可启用视觉闭环)",
+                        }
+                    )
     return out

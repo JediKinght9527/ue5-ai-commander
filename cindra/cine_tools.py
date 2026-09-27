@@ -5,6 +5,7 @@
 render_sequence: mock 同步返回故事板帧; 真 UE 走 MRQ pending 协议,
 这里轮询帧数稳定后, 把首/中/末 3 帧作为 images 回给 agent 审片。
 """
+
 from __future__ import annotations
 
 import os
@@ -42,29 +43,40 @@ TOOLS: list[dict] = [
     {
         "name": "camera_move",
         "description": "给相机生成一段预设运镜并写入关键帧: orbit=环绕, dolly=推拉, "
-                       "crane=升降, flyover=飞掠, static=定机位。工具负责全部轨迹数学, "
-                       "你只描述意图 (中心/距离/圈数等)。",
+        "crane=升降, flyover=飞掠, static=定机位。工具负责全部轨迹数学, "
+        "你只描述意图 (中心/距离/圈数等)。",
         "input_schema": {
             "type": "object",
             "properties": {
                 "sequence": {"type": "string"},
                 "camera": {"type": "string"},
-                "preset": {"type": "string",
-                           "enum": ["orbit", "dolly", "crane", "flyover",
-                                    "static"]},
-                "center": {"type": "array", "items": {"type": "number"},
-                           "description": "orbit/crane 的环绕中心"},
-                "distance": {"type": "number",
-                             "description": "orbit/crane 距中心距离, 默认 800"},
+                "preset": {
+                    "type": "string",
+                    "enum": ["orbit", "dolly", "crane", "flyover", "static"],
+                },
+                "center": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "orbit/crane 的环绕中心",
+                },
+                "distance": {"type": "number", "description": "orbit/crane 距中心距离, 默认 800"},
                 "pitch": {"type": "number", "description": "orbit 俯角, 默认 20"},
-                "revolutions": {"type": "number",
-                                "description": "orbit 圈数, 默认 1"},
-                "start": {"type": "array", "items": {"type": "number"},
-                          "description": "dolly/flyover 起点"},
-                "end": {"type": "array", "items": {"type": "number"},
-                        "description": "dolly/flyover 终点"},
-                "look_at": {"type": "array", "items": {"type": "number"},
-                            "description": "dolly/static 恒看向的点"},
+                "revolutions": {"type": "number", "description": "orbit 圈数, 默认 1"},
+                "start": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "dolly/flyover 起点",
+                },
+                "end": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "dolly/flyover 终点",
+                },
+                "look_at": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "dolly/static 恒看向的点",
+                },
                 "start_height": {"type": "number", "description": "crane 起始高度"},
                 "end_height": {"type": "number", "description": "crane 结束高度"},
                 "height": {"type": "number", "description": "flyover 飞行高度"},
@@ -77,7 +89,7 @@ TOOLS: list[dict] = [
     {
         "name": "add_camera_cut",
         "description": "指定某帧段用哪台相机 (多机位剪辑)。单相机不用调, "
-                       "add_cinematic_camera 已给整段默认 cut。",
+        "add_cinematic_camera 已给整段默认 cut。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -92,8 +104,8 @@ TOOLS: list[dict] = [
     {
         "name": "render_sequence",
         "description": "渲染序列成帧序列 (mock=故事板, 真 UE=Movie Render Queue)。"
-                       "返回首/中/末 3 帧画面, 你要真的审片: 构图/节奏/穿帮, "
-                       "不满意就调整关键帧重渲, 最多 2 轮。",
+        "返回首/中/末 3 帧画面, 你要真的审片: 构图/节奏/穿帮, "
+        "不满意就调整关键帧重渲, 最多 2 轮。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -106,7 +118,7 @@ TOOLS: list[dict] = [
     {
         "name": "review_render",
         "description": "重看已渲染序列的指定帧 (不重渲)。frames 是帧文件序号列表, "
-                       "如 [0, 3, 7]; 省略则取首/中/末。",
+        "如 [0, 3, 7]; 省略则取首/中/末。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -140,36 +152,50 @@ def _build_keys(args: dict) -> list[dict] | dict:
     if preset == "static":
         loc = args.get("start") or args.get("center") or [0, 0, 500]
         from .camera_math import as_vec3, look_at_rotation
-        rot = list(look_at_rotation(as_vec3(loc),
-                                    as_vec3(args.get("look_at", (0, 0, 0)))))
-        return [{"frame": 0, "location": list(loc), "rotation": rot},
-                {"frame": int(fps * seconds), "location": list(loc),
-                 "rotation": rot}]
+
+        rot = list(look_at_rotation(as_vec3(loc), as_vec3(args.get("look_at", (0, 0, 0)))))
+        return [
+            {"frame": 0, "location": list(loc), "rotation": rot},
+            {"frame": int(fps * seconds), "location": list(loc), "rotation": rot},
+        ]
     fn = PRESETS.get(preset)
     if fn is None:
         return {"ok": False, "error": f"unknown preset: {preset}"}
     try:
         if preset == "orbit":
-            return fn(tuple(args.get("center", (0, 0, 0))),
-                      distance=float(args.get("distance", 800)),
-                      pitch=float(args.get("pitch", 20)),
-                      revolutions=float(args.get("revolutions", 1)),
-                      fps=fps, seconds=seconds)
+            return fn(
+                tuple(args.get("center", (0, 0, 0))),
+                distance=float(args.get("distance", 800)),
+                pitch=float(args.get("pitch", 20)),
+                revolutions=float(args.get("revolutions", 1)),
+                fps=fps,
+                seconds=seconds,
+            )
         if preset == "dolly":
-            return fn(tuple(args["start"]), tuple(args["end"]),
-                      look_at=tuple(args["look_at"]) if args.get("look_at")
-                      else None,
-                      fps=fps, seconds=seconds)
+            return fn(
+                tuple(args["start"]),
+                tuple(args["end"]),
+                look_at=tuple(args["look_at"]) if args.get("look_at") else None,
+                fps=fps,
+                seconds=seconds,
+            )
         if preset == "crane":
-            return fn(tuple(args.get("center", (0, 0, 0))),
-                      distance=float(args.get("distance", 600)),
-                      start_height=float(args.get("start_height", 100)),
-                      end_height=float(args.get("end_height", 900)),
-                      fps=fps, seconds=seconds)
+            return fn(
+                tuple(args.get("center", (0, 0, 0))),
+                distance=float(args.get("distance", 600)),
+                start_height=float(args.get("start_height", 100)),
+                end_height=float(args.get("end_height", 900)),
+                fps=fps,
+                seconds=seconds,
+            )
         if preset == "flyover":
-            return fn(tuple(args["start"]), tuple(args["end"]),
-                      height=float(args.get("height", 500)),
-                      fps=fps, seconds=seconds)
+            return fn(
+                tuple(args["start"]),
+                tuple(args["end"]),
+                height=float(args.get("height", 500)),
+                fps=fps,
+                seconds=seconds,
+            )
     except KeyError as e:
         return {"ok": False, "error": f"{preset} 缺少必要参数: {e}"}
     return {"ok": False, "error": f"unreachable preset: {preset}"}
@@ -197,8 +223,7 @@ def _wait_frames(out_dir: str, expected: int, timeout: float = 600.0) -> int:
 
 
 def _pick_frames(out_dir: str, indices: list[int] | None = None) -> list[str]:
-    files = sorted(os.path.join(out_dir, f) for f in os.listdir(out_dir)
-                   if f.endswith(".png"))
+    files = sorted(os.path.join(out_dir, f) for f in os.listdir(out_dir) if f.endswith(".png"))
     if not files:
         return []
     if indices:
@@ -227,16 +252,18 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
         keys = _build_keys(args)
         if isinstance(keys, dict):
             return keys
-        return transport.call("cnd_seq_add_keys",
-                              sequence=args["sequence"],
-                              camera=args["camera"], keys=keys)
+        return transport.call(
+            "cnd_seq_add_keys", sequence=args["sequence"], camera=args["camera"], keys=keys
+        )
 
     if name == "add_camera_cut":
-        return transport.call("cnd_seq_add_cut",
-                              sequence=args["sequence"],
-                              camera=args["camera"],
-                              start_frame=args.get("start_frame"),
-                              end_frame=args.get("end_frame"))
+        return transport.call(
+            "cnd_seq_add_cut",
+            sequence=args["sequence"],
+            camera=args["camera"],
+            start_frame=args.get("start_frame"),
+            end_frame=args.get("end_frame"),
+        )
 
     if name == "render_sequence":
         kw = {"sequence": args["sequence"]}
@@ -248,9 +275,10 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
             out_dir = res.get("out_dir", "")
             n = _wait_frames(out_dir, int(res.get("expected_frames", 0)))
             if n <= 0:
-                return {"ok": False,
-                        "error": f"渲染超时, {out_dir} 没有产出帧 "
-                                 "(MRQ 插件是否启用? 关卡是否已保存?)"}
+                return {
+                    "ok": False,
+                    "error": f"渲染超时, {out_dir} 没有产出帧 (MRQ 插件是否启用? 关卡是否已保存?)",
+                }
             res = dict(res)
             res.pop("pending", None)
             res["frames_rendered"] = n
@@ -269,16 +297,22 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
             if not frames:
                 return {"ok": False, "error": "还没渲染过, 先 render_sequence"}
             idx = args.get("frames")
-            picks = ([frames[i] for i in idx if 0 <= i < len(frames)]
-                     if idx else [frames[0], frames[len(frames) // 2],
-                                  frames[-1]])
+            picks = (
+                [frames[i] for i in idx if 0 <= i < len(frames)]
+                if idx
+                else [frames[0], frames[len(frames) // 2], frames[-1]]
+            )
         else:
             out_dir = args.get("out_dir", "")
             picks = _pick_frames(out_dir, args.get("frames"))
             if not picks:
                 return {"ok": False, "error": "找不到已渲染的帧"}
-        return {"ok": True, "action": "review_render",
-                "sequence": args["sequence"], "images": picks}
+        return {
+            "ok": True,
+            "action": "review_render",
+            "sequence": args["sequence"],
+            "images": picks,
+        }
 
     if name == "list_sequence":
         kw = {}

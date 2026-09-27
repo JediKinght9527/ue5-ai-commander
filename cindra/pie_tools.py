@@ -11,6 +11,7 @@ Cindra 做简洁版 —— mock 端全链路可验证。
 
 自检: python3 -m cindra.pie_tools
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -19,7 +20,7 @@ TOOLS: list[dict] = [
     {
         "name": "launch_pie",
         "description": "启动 Play-In-Editor (模拟运行游戏)。mock 后端模拟启动并生成模拟日志; "
-                       "真 UE 端实际启动 PIE 会话。启动后应用 read_pie_log 读日志检查错误。",
+        "真 UE 端实际启动 PIE 会话。启动后应用 read_pie_log 读日志检查错误。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -39,14 +40,16 @@ TOOLS: list[dict] = [
     {
         "name": "read_pie_log",
         "description": "读取 PIE 运行的日志 (最近 N 行)。检查错误/警告, 判断运行是否正常。"
-                       "mock 后端基于场景内容模拟真实日志; 真 UE 端读数 Saved/Logs。",
+        "mock 后端基于场景内容模拟真实日志; 真 UE 端读数 Saved/Logs。",
         "input_schema": {
             "type": "object",
             "properties": {
                 "n": {"type": "integer", "description": "返回最近多少行, 默认 50"},
-                "level": {"type": "string",
-                          "enum": ["all", "errors", "warnings", "info"],
-                          "description": "日志级别过滤, 默认 all"},
+                "level": {
+                    "type": "string",
+                    "enum": ["all", "errors", "warnings", "info"],
+                    "description": "日志级别过滤, 默认 all",
+                },
             },
         },
     },
@@ -73,25 +76,41 @@ class MockPIESession:
         self._log_counter += 1
         # 模拟标准 PIE 启动日志
         self.logs = [
-            {"seq": self._log_counter, "level": "info",
-             "msg": f"LogPlayLevel: PIE: Play in editor start (mode={play_mode})"},
-            {"seq": self._log_counter + 1, "level": "info",
-             "msg": "LogPlayLevel: PIE: World Initialized"},
-            {"seq": self._log_counter + 2, "level": "info",
-             "msg": "LogGameMode: GameMode initialized with default pawn"},
-            {"seq": self._log_counter + 3, "level": "info",
-             "msg": "LogPlayLevel: PIE: Server logged in"},
+            {
+                "seq": self._log_counter,
+                "level": "info",
+                "msg": f"LogPlayLevel: PIE: Play in editor start (mode={play_mode})",
+            },
+            {
+                "seq": self._log_counter + 1,
+                "level": "info",
+                "msg": "LogPlayLevel: PIE: World Initialized",
+            },
+            {
+                "seq": self._log_counter + 2,
+                "level": "info",
+                "msg": "LogGameMode: GameMode initialized with default pawn",
+            },
+            {
+                "seq": self._log_counter + 3,
+                "level": "info",
+                "msg": "LogPlayLevel: PIE: Server logged in",
+            },
         ]
         self._log_counter += 4
-        return {"ok": True, "action": "launch_pie",
-                "play_mode": play_mode, "running": True}
+        return {"ok": True, "action": "launch_pie", "play_mode": play_mode, "running": True}
 
     def stop(self) -> dict:
         if not self.running:
             return {"ok": False, "error": "PIE 没有在运行"}
         self.running = False
-        self.logs.append({"seq": self._log_counter, "level": "info",
-                          "msg": "LogPlayLevel: PIE: Play in editor stop"})
+        self.logs.append(
+            {
+                "seq": self._log_counter,
+                "level": "info",
+                "msg": "LogPlayLevel: PIE: Play in editor stop",
+            }
+        )
         self._log_counter += 1
         return {"ok": True, "action": "stop_pie", "running": False}
 
@@ -105,24 +124,29 @@ class MockPIESession:
             logs = [ln for ln in logs if ln["level"] == target_level]
         errors = [ln for ln in logs if ln["level"] == "error"]
         warnings = [ln for ln in logs if ln["level"] == "warning"]
-        return {"ok": True, "action": "read_pie_log",
-                "running": self.running,
-                "total_lines": len(self.logs),
-                "returned": len(logs),
-                "errors": len(errors),
-                "warnings": len(warnings),
-                "logs": logs}
+        return {
+            "ok": True,
+            "action": "read_pie_log",
+            "running": self.running,
+            "total_lines": len(self.logs),
+            "returned": len(logs),
+            "errors": len(errors),
+            "warnings": len(warnings),
+            "logs": logs,
+        }
 
     def inject_error(self, msg: str) -> None:
         """给日志注入一条错误 (mock 端模拟运行时错误)。"""
-        self.logs.append({"seq": self._log_counter, "level": "error",
-                          "msg": f"LogBlueprint: Error: {msg}"})
+        self.logs.append(
+            {"seq": self._log_counter, "level": "error", "msg": f"LogBlueprint: Error: {msg}"}
+        )
         self._log_counter += 1
 
     def inject_warning(self, msg: str) -> None:
         """给日志注入一条警告。"""
-        self.logs.append({"seq": self._log_counter, "level": "warning",
-                          "msg": f"LogBlueprint: Warning: {msg}"})
+        self.logs.append(
+            {"seq": self._log_counter, "level": "warning", "msg": f"LogBlueprint: Warning: {msg}"}
+        )
         self._log_counter += 1
 
     def inject_log_from_scene(self, actors: list[dict]) -> None:
@@ -133,20 +157,26 @@ class MockPIESession:
         """
         # actor 初始化
         for a in actors:
-            self.logs.append({
-                "seq": self._log_counter, "level": "info",
-                "msg": f"LogActor: Spawned {a.get('name', '?')} at "
-                       f"{a.get('location', [0, 0, 0])}",
-            })
+            self.logs.append(
+                {
+                    "seq": self._log_counter,
+                    "level": "info",
+                    "msg": f"LogActor: Spawned {a.get('name', '?')} at "
+                    f"{a.get('location', [0, 0, 0])}",
+                }
+            )
             self._log_counter += 1
         # 模拟蓝图编译结果
         bp_actors = [a for a in actors if a.get("type", "").startswith("asset:")]
         if bp_actors:
             for a in bp_actors:
-                self.logs.append({
-                    "seq": self._log_counter, "level": "info",
-                    "msg": f"LogBlueprint: Compiled {a['name']} (0 errors, 0 warnings)",
-                })
+                self.logs.append(
+                    {
+                        "seq": self._log_counter,
+                        "level": "info",
+                        "msg": f"LogBlueprint: Compiled {a['name']} (0 errors, 0 warnings)",
+                    }
+                )
                 self._log_counter += 1
         # 如果有太多 actor 在同一位置，生成碰撞警告
         positions = {}
@@ -155,19 +185,26 @@ class MockPIESession:
             positions[k] = positions.get(k, 0) + 1
         for k, count in positions.items():
             if count >= 3:
-                self.logs.append({
-                    "seq": self._log_counter, "level": "warning",
-                    "msg": f"LogCollision: Warning: {count} actors overlap near {list(k)}",
-                })
+                self.logs.append(
+                    {
+                        "seq": self._log_counter,
+                        "level": "warning",
+                        "msg": f"LogCollision: Warning: {count} actors overlap near {list(k)}",
+                    }
+                )
                 self._log_counter += 1
         # 没有 Pawn → 错误
-        has_pawn = any(a.get("type") == "player" or "pawn" in a.get("name", "").lower()
-                       for a in actors)
+        has_pawn = any(
+            a.get("type") == "player" or "pawn" in a.get("name", "").lower() for a in actors
+        )
         if not has_pawn:
-            self.logs.append({
-                "seq": self._log_counter, "level": "error",
-                "msg": "LogGameMode: Error: No Player Pawn found. PIE may not function correctly.",
-            })
+            self.logs.append(
+                {
+                    "seq": self._log_counter,
+                    "level": "error",
+                    "msg": "LogGameMode: Error: No Player Pawn found. PIE may not function correctly.",
+                }
+            )
             self._log_counter += 1
 
 
@@ -194,7 +231,8 @@ def dispatch(transport_or_session, name: str, args: dict[str, Any]) -> dict:
         else:
             # 真 UE: console command
             return transport_or_session.call(
-                "cnd_console", cmd="PlayInEditor",
+                "cnd_console",
+                cmd="PlayInEditor",
                 params={"play_mode": play_mode},
             )
 
@@ -212,7 +250,9 @@ def dispatch(transport_or_session, name: str, args: dict[str, Any]) -> dict:
         else:
             # 真 UE: 读 Saved/Logs/<Project>.log 最后 N 行
             return transport_or_session.call(
-                "cnd_read_log", lines=n, level=level,
+                "cnd_read_log",
+                lines=n,
+                level=level,
             )
 
     return {"ok": False, "error": f"unknown tool: {name}"}
@@ -294,9 +334,12 @@ def _selfcheck() -> int:
     s.inject_log_from_scene(mock_actors)
     r = s.read_log()
     # 有重叠(6个在25-50区域) → 碰撞警告, 无Pawn → 错误, 2蓝图编译
-    assert r["warnings"] >= 1 and r["errors"] >= 1, \
+    assert r["warnings"] >= 1 and r["errors"] >= 1, (
         f"场景模拟日志应有 warning+error: w={r['warnings']} e={r['errors']}"
-    print(f"✅ scene→log: {r['total_lines']} 行, {r['warnings']} 警告, {r['errors']} 错误 (模拟真实关卡)")
+    )
+    print(
+        f"✅ scene→log: {r['total_lines']} 行, {r['warnings']} 警告, {r['errors']} 错误 (模拟真实关卡)"
+    )
     s.stop()
 
     print("\nPIE 自检 8/8 通过。")

@@ -11,6 +11,7 @@
 corpus 切块: docs_corpus/*.md 按 markdown 标题 (# / ##) 切成块, 每块带它的
 标题和来源文件, 便于 agent 回答时标注引用 [来源: 文件#标题]。
 """
+
 from __future__ import annotations
 
 import math
@@ -25,6 +26,7 @@ CORPUS_DIR = os.path.join(os.path.dirname(__file__), "docs_corpus")
 # ---------------------------------------------------------------------------
 # 切块
 # ---------------------------------------------------------------------------
+
 
 def chunk_corpus(corpus_dir: str = CORPUS_DIR) -> list[dict]:
     """把 corpus 目录下的 .md 按标题切块。
@@ -59,12 +61,14 @@ def _chunk_file(path: str, fname: str, id_offset: int) -> list[dict]:
     def emit() -> None:
         if title is None:
             return
-        out.append({
-            "id": f"{fname}#{id_offset + len(out)}",
-            "title": title,
-            "file": fname,
-            "text": "\n".join(buf).strip(),
-        })
+        out.append(
+            {
+                "id": f"{fname}#{id_offset + len(out)}",
+                "title": title,
+                "file": fname,
+                "text": "\n".join(buf).strip(),
+            }
+        )
 
     for line in lines:
         m = re.match(r"^#{1,3}\s+(.*)$", line)
@@ -85,11 +89,26 @@ def _chunk_file(path: str, fname: str, id_offset: int) -> list[dict]:
 # 中文虚词/疑问词停用词。过滤掉它们, 避免 "UPROPERTY 是干什么的" 里的
 # 是/干/什/么 这类高频无信息词把 "...是什么" 标题的短块顶上来。
 # 保留 区别/优化 这类承载语义的词。
-_STOP_CJK = set("的了是在和与也都很到有个这那它你我他她们吗呢吧把被让从对于"
-                "及其之或而但即就还又再请用做为以可会能要会"
-                "什么干怎样啥哪谁")
-_STOP_BIGRAM = {"什么", "怎么", "是什", "是干", "干什", "么的", "为什", "什么的",
-                "是否", "有没", "没有", "可以", "如何"}
+_STOP_CJK = set(
+    "的了是在和与也都很到有个这那它你我他她们吗呢吧把被让从对于"
+    "及其之或而但即就还又再请用做为以可会能要会"
+    "什么干怎样啥哪谁"
+)
+_STOP_BIGRAM = {
+    "什么",
+    "怎么",
+    "是什",
+    "是干",
+    "干什",
+    "么的",
+    "为什",
+    "什么的",
+    "是否",
+    "有没",
+    "没有",
+    "可以",
+    "如何",
+}
 
 
 def tokenize(text: str) -> list[str]:
@@ -118,6 +137,7 @@ def tokenize(text: str) -> list[str]:
 # LexicalIndex —— BM25-lite (默认, 零依赖, 离线, 确定性)
 # ---------------------------------------------------------------------------
 
+
 class LexicalIndex:
     """BM25 关键词检索。纯标准库, 不联网不需要 API key。"""
 
@@ -136,10 +156,7 @@ class LexicalIndex:
             for term in set(toks):
                 df[term] += 1
         n = len(chunks)
-        self.idf = {
-            term: math.log(1 + (n - d + 0.5) / (d + 0.5))
-            for term, d in df.items()
-        }
+        self.idf = {term: math.log(1 + (n - d + 0.5) / (d + 0.5)) for term, d in df.items()}
 
     def _score(self, doc_i: int, q_terms: list[str]) -> float:
         score = 0.0
@@ -165,14 +182,16 @@ class LexicalIndex:
         out = []
         for s, i in scored[:k]:
             c = self.chunks[i]
-            out.append({"title": c["title"], "file": c["file"],
-                        "score": round(s, 3), "text": c["text"]})
+            out.append(
+                {"title": c["title"], "file": c["file"], "score": round(s, 3), "text": c["text"]}
+            )
         return out
 
 
 # ---------------------------------------------------------------------------
 # EmbeddingIndex —— 向量检索 (惰性依赖, 生产质量)
 # ---------------------------------------------------------------------------
+
 
 class EmbeddingIndex:
     """向量检索后端。
@@ -200,6 +219,7 @@ class EmbeddingIndex:
                 "依赖/Key。请改用默认的 lexical 后端 (--index lexical), 或传入 "
                 "embed_fn。lexical 在 Mac 上离线即可跑, 检索质量足够验证闭环。"
             )
+
         return _embed
 
     @staticmethod
@@ -216,8 +236,9 @@ class EmbeddingIndex:
         out = []
         for s, i in scored[:k]:
             c = self.chunks[i]
-            out.append({"title": c["title"], "file": c["file"],
-                        "score": round(s, 3), "text": c["text"]})
+            out.append(
+                {"title": c["title"], "file": c["file"], "score": round(s, 3), "text": c["text"]}
+            )
         return out
 
 
@@ -225,8 +246,8 @@ class EmbeddingIndex:
 # 工厂
 # ---------------------------------------------------------------------------
 
-def build_index(kind: str = "lexical", corpus_dir: str = CORPUS_DIR,
-                embed_fn=None):
+
+def build_index(kind: str = "lexical", corpus_dir: str = CORPUS_DIR, embed_fn=None):
     """按 kind 构建检索后端。kind: 'lexical' (默认) | 'embed'。"""
     chunks = chunk_corpus(corpus_dir)
     if not chunks:
@@ -259,8 +280,7 @@ _SELFCHECK = [
 
 def _selfcheck() -> int:
     chunks = chunk_corpus()
-    print(f"切块: {len(chunks)} 块, 来自 "
-          f"{len({c['file'] for c in chunks})} 个文件")
+    print(f"切块: {len(chunks)} 块, 来自 {len({c['file'] for c in chunks})} 个文件")
     idx = LexicalIndex(chunks)
     passed = 0
     for query, expect_file in _SELFCHECK:

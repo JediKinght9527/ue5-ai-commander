@@ -5,6 +5,7 @@ spawn / spawn_grid / delete / move / list / clear。dedicated 工具让我们能
 对每步做校验、渲染、审计 —— agent-design.md 里 "promote to dedicated tool"
 的理由。每个工具直接映射到引擎侧一个 cnd_*() 函数。
 """
+
 from __future__ import annotations
 
 import os
@@ -24,6 +25,7 @@ class ChatContext:
     向后兼容: dispatch 第一参也接受裸 transport (mock_ue 自检等旧调用方),
     此时资产检索按需懒加载 mock 清单。
     """
+
     transport: Transport
     asset_index: Any = None
     extras: dict = field(default_factory=dict)
@@ -31,6 +33,7 @@ class ChatContext:
     def ensure_asset_index(self):
         if self.asset_index is None:
             from .asset_index import load_asset_index
+
             self.asset_index = load_asset_index()
         return self.asset_index
 
@@ -40,24 +43,36 @@ def _actor_name(actor_type: str, explicit_name: str | None = None) -> str | None
         return explicit_name
     return f"{CINDRA_ACTOR_PREFIX}{actor_type.capitalize()}"
 
+
 # Claude tool 定义 (JSON schema)。描述里写清"何时用", 对新 Opus 触发率有提升。
 TOOLS: list[dict] = [
     {
         "name": "spawn_actor",
         "description": "在场景里生成一个基础形状 Actor (cube/sphere/cylinder/cone/plane)。"
-                       "用户说'放一个箱子/球'时调用。可指定名字、坐标、旋转、缩放。",
+        "用户说'放一个箱子/球'时调用。可指定名字、坐标、旋转、缩放。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "actor_type": {"type": "string",
-                               "enum": ["cube", "sphere", "cylinder", "cone", "plane"]},
+                "actor_type": {
+                    "type": "string",
+                    "enum": ["cube", "sphere", "cylinder", "cone", "plane"],
+                },
                 "name": {"type": "string", "description": "可选, 不给则自动命名"},
-                "location": {"type": "array", "items": {"type": "number"},
-                             "description": "[x, y, z], UE 单位 cm。默认 [0,0,0]"},
-                "rotation": {"type": "array", "items": {"type": "number"},
-                             "description": "[pitch, yaw, roll] 度。默认 [0,0,0]"},
-                "scale": {"type": "array", "items": {"type": "number"},
-                          "description": "[x, y, z]。默认 [1,1,1]"},
+                "location": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "[x, y, z], UE 单位 cm。默认 [0,0,0]",
+                },
+                "rotation": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "[pitch, yaw, roll] 度。默认 [0,0,0]",
+                },
+                "scale": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "[x, y, z]。默认 [1,1,1]",
+                },
             },
             "required": ["actor_type"],
         },
@@ -65,17 +80,22 @@ TOOLS: list[dict] = [
     {
         "name": "spawn_grid",
         "description": "批量生成 N 个同形状 Actor, 排成网格。用户说'生成 10 个 cube'"
-                       "这类批量需求时用这个, 比逐个 spawn 高效。",
+        "这类批量需求时用这个, 比逐个 spawn 高效。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "actor_type": {"type": "string",
-                               "enum": ["cube", "sphere", "cylinder", "cone", "plane"]},
+                "actor_type": {
+                    "type": "string",
+                    "enum": ["cube", "sphere", "cylinder", "cone", "plane"],
+                },
                 "count": {"type": "integer", "description": "总数量"},
                 "spacing": {"type": "number", "description": "间距 cm, 默认 200"},
                 "columns": {"type": "integer", "description": "每行几个, 默认自动接近正方"},
-                "origin": {"type": "array", "items": {"type": "number"},
-                           "description": "网格左上角 [x,y,z], 默认 [0,0,0]"},
+                "origin": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "网格左上角 [x,y,z], 默认 [0,0,0]",
+                },
             },
             "required": ["actor_type", "count"],
         },
@@ -104,17 +124,26 @@ TOOLS: list[dict] = [
     {
         "name": "set_transform",
         "description": "一次性设置一个 Actor 的位置/旋转/缩放 (任一可省)。需要让物体"
-                       "旋转或缩放 (而不只是平移) 时用它, 比 move_actor 更全。",
+        "旋转或缩放 (而不只是平移) 时用它, 比 move_actor 更全。",
         "input_schema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "location": {"type": "array", "items": {"type": "number"},
-                             "description": "[x,y,z] cm, 省略则不改位置"},
-                "rotation": {"type": "array", "items": {"type": "number"},
-                             "description": "[pitch,yaw,roll] 度, 省略则不改朝向"},
-                "scale": {"type": "array", "items": {"type": "number"},
-                          "description": "[x,y,z], 省略则不改缩放"},
+                "location": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "[x,y,z] cm, 省略则不改位置",
+                },
+                "rotation": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "[pitch,yaw,roll] 度, 省略则不改朝向",
+                },
+                "scale": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "[x,y,z], 省略则不改缩放",
+                },
             },
             "required": ["name"],
         },
@@ -122,22 +151,27 @@ TOOLS: list[dict] = [
     {
         "name": "arrange_scene",
         "description": "对整个场景(或某区域)做语义化批量变换 —— 一句话改变全场氛围, "
-                       "而不用逐个 move。用户说'让这里像被地震砸过/把东西散乱开/全部倒下/"
-                       "排整齐/向外炸开'这类整体效果时用它。它会读回当前所有 Actor, 按风格"
-                       "给每个算一套新的位置+旋转+缩放并应用。",
+        "而不用逐个 move。用户说'让这里像被地震砸过/把东西散乱开/全部倒下/"
+        "排整齐/向外炸开'这类整体效果时用它。它会读回当前所有 Actor, 按风格"
+        "给每个算一套新的位置+旋转+缩放并应用。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "style": {"type": "string",
-                          "enum": ["earthquake", "scatter", "topple", "tidy",
-                                   "explode"],
-                          "description": "earthquake=震乱+倾斜; scatter=随机散开; "
-                                         "topple=全部倒下; tidy=重排整齐网格; "
-                                         "explode=从中心向外炸开"},
-                "intensity": {"type": "number",
-                              "description": "强度 0~1, 默认 0.6。越大位移/倾斜越夸张"},
-                "prefix": {"type": "string",
-                           "description": "可选, 只对名字以此前缀开头的 Actor 生效"},
+                "style": {
+                    "type": "string",
+                    "enum": ["earthquake", "scatter", "topple", "tidy", "explode"],
+                    "description": "earthquake=震乱+倾斜; scatter=随机散开; "
+                    "topple=全部倒下; tidy=重排整齐网格; "
+                    "explode=从中心向外炸开",
+                },
+                "intensity": {
+                    "type": "number",
+                    "description": "强度 0~1, 默认 0.6。越大位移/倾斜越夸张",
+                },
+                "prefix": {
+                    "type": "string",
+                    "description": "可选, 只对名字以此前缀开头的 Actor 生效",
+                },
             },
             "required": ["style"],
         },
@@ -145,33 +179,32 @@ TOOLS: list[dict] = [
     {
         "name": "inspect_viewport",
         "description": "亲眼看一眼当前场景 (mock 后端返回 ASCII 俯视图, 真 UE 返回"
-                       "视口截图图片)。完成一组改动后必须调用它, 目视确认效果真的"
-                       "符合用户要求 —— 工具返回 ok 不等于场景看起来对。也用于对"
-                       "场景现状不确定、或用户问'现在什么样'时。",
+        "视口截图图片)。完成一组改动后必须调用它, 目视确认效果真的"
+        "符合用户要求 —— 工具返回 ok 不等于场景看起来对。也用于对"
+        "场景现状不确定、或用户问'现在什么样'时。",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "undo",
         "description": "撤销最近 steps 步场景改动 (mock: 状态历史回滚; 真 UE: "
-                       "编辑器 Transaction.Undo)。当你验证发现改坏了要回退、或"
-                       "用户说'撤销/恢复原样'时用。撤销后应 inspect_viewport 或 "
-                       "list_actors 确认回退结果。",
+        "编辑器 Transaction.Undo)。当你验证发现改坏了要回退、或"
+        "用户说'撤销/恢复原样'时用。撤销后应 inspect_viewport 或 "
+        "list_actors 确认回退结果。",
         "input_schema": {
             "type": "object",
-            "properties": {"steps": {"type": "integer",
-                                     "description": "撤销几步, 默认 1"}},
+            "properties": {"steps": {"type": "integer", "description": "撤销几步, 默认 1"}},
         },
     },
     {
         "name": "list_actors",
         "description": "列出场景里所有 Actor 及坐标。做完操作后用它读回状态自检, "
-                       "或用户问'现在场景里有什么'时调用。",
+        "或用户问'现在场景里有什么'时调用。",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "clear_scene",
         "description": "清空场景里所有 StaticMesh Actor。可选 prefix 只清某前缀的。"
-                       "破坏性操作, 调用前应向用户确认。",
+        "破坏性操作, 调用前应向用户确认。",
         "input_schema": {
             "type": "object",
             "properties": {"prefix": {"type": "string"}},
@@ -182,7 +215,7 @@ TOOLS: list[dict] = [
 
 def _grid_positions(count, spacing, columns, origin):
     if not columns or columns < 1:
-        columns = max(1, int(round(count ** 0.5)))
+        columns = max(1, int(round(count**0.5)))
     origin = list(origin or []) + [0, 0, 0]  # 补齐到至少 3 个
     ox, oy, oz = float(origin[0]), float(origin[1]), float(origin[2])
     for i in range(count):
@@ -195,10 +228,12 @@ def _grid_positions(count, spacing, columns, origin):
 # 全场 Actor, 在 Python 里按风格算出每个的新 transform, 再逐个 cnd_set_transform。
 # 纯编排现有原语, mock 上就能跑通、可确定性复现。
 
+
 def _rand01(seed_str: str, salt: str) -> float:
     """基于 (名字, salt) 的稳定伪随机 [0,1)。用 md5 而非内置 hash, 不受
     PYTHONHASHSEED 影响 —— 保证同输入永远同输出 (自检要确定性)。"""
     import hashlib
+
     h = hashlib.md5(f"{seed_str}|{salt}".encode()).hexdigest()
     return int(h[:8], 16) / 0xFFFFFFFF
 
@@ -206,7 +241,7 @@ def _rand01(seed_str: str, salt: str) -> float:
 def _plan_transform(style, name, loc, intensity, center):
     """给一个 Actor 算新的 (location, rotation, scale)。返回的 dict 只含要改的键。"""
     k = intensity
-    rx = _rand01(name, "x") * 2 - 1   # [-1,1]
+    rx = _rand01(name, "x") * 2 - 1  # [-1,1]
     ry = _rand01(name, "y") * 2 - 1
     rz = _rand01(name, "z")
     ryaw = _rand01(name, "yaw") * 2 - 1
@@ -214,29 +249,37 @@ def _plan_transform(style, name, loc, intensity, center):
 
     if style == "earthquake":
         # 小幅震乱 + 随机倾斜 + 少量下沉
-        return {"location": [x + rx * 120 * k, y + ry * 120 * k,
-                             max(0.0, z - rz * 40 * k)],
-                "rotation": [(_rand01(name, "p") * 2 - 1) * 25 * k,
-                             ryaw * 180,
-                             (_rand01(name, "r") * 2 - 1) * 25 * k]}
+        return {
+            "location": [x + rx * 120 * k, y + ry * 120 * k, max(0.0, z - rz * 40 * k)],
+            "rotation": [
+                (_rand01(name, "p") * 2 - 1) * 25 * k,
+                ryaw * 180,
+                (_rand01(name, "r") * 2 - 1) * 25 * k,
+            ],
+        }
     if style == "scatter":
         # 大幅随机平移, 不倾斜
         return {"location": [x + rx * 400 * k, y + ry * 400 * k, z]}
     if style == "topple":
         # 几乎全部放倒 (roll≈90), 随机朝向
-        return {"location": [x, y, z],
-                "rotation": [0, ryaw * 180, 90 * (0.6 + 0.4 * rz)]}
+        return {"location": [x, y, z], "rotation": [0, ryaw * 180, 90 * (0.6 + 0.4 * rz)]}
     if style == "explode":
         # 从场景中心向外推, 越远推得越多 + 抬升
         dx, dy = x - center[0], y - center[1]
         dist = max(1.0, (dx * dx + dy * dy) ** 0.5)
         push = 1.0 + 1.2 * k
-        return {"location": [center[0] + dx / dist * (dist * push),
-                             center[1] + dy / dist * (dist * push),
-                             z + rz * 200 * k],
-                "rotation": [(_rand01(name, "p") * 2 - 1) * 40 * k,
-                             ryaw * 180,
-                             (_rand01(name, "r") * 2 - 1) * 40 * k]}
+        return {
+            "location": [
+                center[0] + dx / dist * (dist * push),
+                center[1] + dy / dist * (dist * push),
+                z + rz * 200 * k,
+            ],
+            "rotation": [
+                (_rand01(name, "p") * 2 - 1) * 40 * k,
+                ryaw * 180,
+                (_rand01(name, "r") * 2 - 1) * 40 * k,
+            ],
+        }
     # tidy 在 dispatch 里单独处理 (要全局重排), 这里不该被调到
     return {}
 
@@ -250,8 +293,10 @@ def _arrange(transport, style, intensity, prefix):
     if prefix:
         actors = [a for a in actors if a["name"].startswith(prefix)]
     if not actors:
-        return {"ok": False, "error": "场景里没有可变换的 Actor"
-                + (f" (前缀 {prefix})" if prefix else "")}
+        return {
+            "ok": False,
+            "error": "场景里没有可变换的 Actor" + (f" (前缀 {prefix})" if prefix else ""),
+        }
 
     # 场景中心 (explode 用)
     xs = [a["location"][0] for a in actors]
@@ -262,23 +307,34 @@ def _arrange(transport, style, intensity, prefix):
     if style == "tidy":
         # 全局重排成整齐网格 (按名字排序保证确定)
         ordered = sorted(actors, key=lambda a: a["name"])
-        for pos, a in zip(_grid_positions(len(ordered), 200, None,
-                                          [center[0], center[1], 0]), ordered, strict=True):
-            r = transport.call("cnd_set_transform", name=a["name"],
-                               location=pos, rotation=[0, 0, 0], scale=[1, 1, 1])
+        for pos, a in zip(
+            _grid_positions(len(ordered), 200, None, [center[0], center[1], 0]),
+            ordered,
+            strict=True,
+        ):
+            r = transport.call(
+                "cnd_set_transform",
+                name=a["name"],
+                location=pos,
+                rotation=[0, 0, 0],
+                scale=[1, 1, 1],
+            )
             if r.get("ok"):
                 changed += 1
     else:
         for a in actors:
-            plan = _plan_transform(style, a["name"], a["location"],
-                                   intensity, center)
+            plan = _plan_transform(style, a["name"], a["location"], intensity, center)
             r = transport.call("cnd_set_transform", name=a["name"], **plan)
             if r.get("ok"):
                 changed += 1
 
-    return {"ok": True, "action": "arrange_scene", "style": style,
-            "total": len(actors), "changed": changed}
-
+    return {
+        "ok": True,
+        "action": "arrange_scene",
+        "style": style,
+        "total": len(actors),
+        "changed": changed,
+    }
 
 
 def _wait_for_file(path: str, timeout: float = 15.0) -> bool:
@@ -304,8 +360,7 @@ def _resolve_screenshot(result: dict) -> dict:
             result.pop("pending", None)
             result["images"] = [path]
         else:
-            result = {"ok": False,
-                      "error": f"截图超时未落盘: {path} (viewport 是否可见?)"}
+            result = {"ok": False, "error": f"截图超时未落盘: {path} (viewport 是否可见?)"}
     return result
 
 
@@ -317,15 +372,17 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
     transport: Transport = getattr(ctx, "transport", ctx)
 
     if name == "search_assets":
-        index = (ctx.ensure_asset_index() if isinstance(ctx, ChatContext)
-                 else ChatContext(transport).ensure_asset_index())
+        index = (
+            ctx.ensure_asset_index()
+            if isinstance(ctx, ChatContext)
+            else ChatContext(transport).ensure_asset_index()
+        )
         cf = args.get("class_filter")
-        hits = index.search(args["query"],
-                            k=int(args.get("k", 8)),
-                            class_filter=None if cf in (None, "any") else cf)
+        hits = index.search(
+            args["query"], k=int(args.get("k", 8)), class_filter=None if cf in (None, "any") else cf
+        )
         if not hits:
-            return {"ok": False,
-                    "error": f"没搜到匹配 {args['query']!r} 的资产, 换个说法试试"}
+            return {"ok": False, "error": f"没搜到匹配 {args['query']!r} 的资产, 换个说法试试"}
         return {"ok": True, "action": "search_assets", "hits": hits}
 
     if name == "spawn_asset":
@@ -339,15 +396,24 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
         )
 
     if name == "set_material":
-        return transport.call("cnd_set_material",
-                              name=args["actor_name"],
-                              material_path=args["material_path"],
-                              slot=int(args.get("slot", 0)))
+        return transport.call(
+            "cnd_set_material",
+            name=args["actor_name"],
+            material_path=args["material_path"],
+            slot=int(args.get("slot", 0)),
+        )
 
     if name == "spawn_light":
         kw = {"light_type": args["light_type"]}
-        for key in ("name", "location", "rotation", "intensity", "color",
-                    "temperature", "cone_angle"):
+        for key in (
+            "name",
+            "location",
+            "rotation",
+            "intensity",
+            "color",
+            "temperature",
+            "cone_angle",
+        ):
             if args.get(key) is not None:
                 kw[key] = args[key]
         return transport.call("cnd_spawn_light", **kw)
@@ -371,14 +437,12 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
             xs = [a["location"][0] for a in actors]
             ys = [a["location"][1] for a in actors]
             zs = [a["location"][2] for a in actors]
-            center = (sum(xs) / len(xs), sum(ys) / len(ys),
-                      sum(zs) / len(zs))
+            center = (sum(xs) / len(xs), sum(ys) / len(ys), sum(zs) / len(zs))
             radius = max(max(xs) - min(xs), max(ys) - min(ys), 400.0) / 2.0
         else:
             center, radius = (0.0, 0.0, 0.0), 600.0
         try:
-            ops = build_rig(args["style"], center, radius,
-                            float(args.get("intensity", 0.6)))
+            ops = build_rig(args["style"], center, radius, float(args.get("intensity", 0.6)))
         except ValueError as e:
             return {"ok": False, "error": str(e)}
         applied, errors = 0, []
@@ -388,16 +452,19 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
                 applied += 1
             else:
                 errors.append(r.get("error"))
-        out = {"ok": not errors, "action": "light_rig",
-               "style": args["style"], "applied": applied,
-               "total": len(ops)}
+        out = {
+            "ok": not errors,
+            "action": "light_rig",
+            "style": args["style"],
+            "applied": applied,
+            "total": len(ops),
+        }
         if errors:
             out["error"] = "; ".join(str(e) for e in errors[:3])
         return out
 
     if name == "setup_environment":
-        return transport.call("cnd_spawn_env", kind=args["kind"],
-                              params=args.get("params") or {})
+        return transport.call("cnd_spawn_env", kind=args["kind"], params=args.get("params") or {})
 
     if name == "pcg_scatter":
         vol = transport.call(
@@ -468,15 +535,19 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
                 spawned.append(r["name"])
             else:
                 return {"ok": False, "error": r.get("error"), "spawned": spawned}
-        return {"ok": True, "action": "spawn_grid", "type": atype,
-                "count": len(spawned), "names": spawned}
+        return {
+            "ok": True,
+            "action": "spawn_grid",
+            "type": atype,
+            "count": len(spawned),
+            "names": spawned,
+        }
 
     if name == "delete_actor":
         return transport.call("cnd_delete", name=args["name"])
 
     if name == "move_actor":
-        return transport.call("cnd_move", name=args["name"],
-                              location=args["location"])
+        return transport.call("cnd_move", name=args["name"], location=args["location"])
 
     if name == "set_transform":
         kw = {"name": args["name"]}
@@ -486,9 +557,9 @@ def dispatch(ctx, name: str, args: dict[str, Any]) -> dict:
         return transport.call("cnd_set_transform", **kw)
 
     if name == "arrange_scene":
-        return _arrange(transport, args["style"],
-                        float(args.get("intensity", 0.6)),
-                        args.get("prefix"))
+        return _arrange(
+            transport, args["style"], float(args.get("intensity", 0.6)), args.get("prefix")
+        )
 
     if name == "inspect_viewport":
         # 视觉通道走 transport.viewport() 而非 cnd_* 直发: 真 UE 版要在 CLI 侧

@@ -5,6 +5,7 @@ It is a production helper for UE designers: generate editable combat spaces
 with stable names, folders, tags, and an audit report that can be reviewed
 without spending model credits.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -36,9 +37,7 @@ class Layout:
     notes: tuple[str, ...]
 
 
-def try_handle_blockout_prompt(
-    transport: Any, prompt: str, *, verbose: bool = True
-) -> bool:
+def try_handle_blockout_prompt(transport: Any, prompt: str, *, verbose: bool = True) -> bool:
     text = prompt or ""
     normalized = _normalize(text)
 
@@ -110,11 +109,37 @@ def build_gauntlet(transport: Any) -> dict:
 
 
 def _select_layout(text: str) -> Layout:
-    if _has_any(text, ("gauntlet", "combatlane", "encounterchain", "\u8fde\u6218", "\u6218\u6597\u8d70\u5eca", "\u5173\u5361\u8282\u594f")):
+    if _has_any(
+        text,
+        (
+            "gauntlet",
+            "combatlane",
+            "encounterchain",
+            "\u8fde\u6218",
+            "\u6218\u6597\u8d70\u5eca",
+            "\u5173\u5361\u8282\u594f",
+        ),
+    ):
         return _gauntlet_layout()
     if _has_any(text, ("corridor", "hallway", "lane", "zoulang", "\u8d70\u5eca", "\u901a\u9053")):
         return _corridor_layout()
-    if _has_any(text, ("boss", "duel", "wukong", "blackmyth", "heishenhua", "yaoguai", "\u9ed1\u795e\u8bdd", "\u609f\u7a7a", "\u5996\u602a", "\u8001\u677f", "\u9996\u9886", "\u7cbe\u82f1\u602a")):
+    if _has_any(
+        text,
+        (
+            "boss",
+            "duel",
+            "wukong",
+            "blackmyth",
+            "heishenhua",
+            "yaoguai",
+            "\u9ed1\u795e\u8bdd",
+            "\u609f\u7a7a",
+            "\u5996\u602a",
+            "\u8001\u677f",
+            "\u9996\u9886",
+            "\u7cbe\u82f1\u602a",
+        ),
+    ):
         return _boss_arena_layout()
     if _has_any(text, ("room", "chamber", "interior", "fangjian", "\u623f\u95f4", "\u5ba4\u5185")):
         return _room_layout()
@@ -127,8 +152,14 @@ def _arena_layout() -> Layout:
     pieces = _room_shell("Arena", 2200, 1600)
     pieces += _boxes(
         "Arena_Cover",
-        [[-650, -380, 90], [0, -380, 90], [650, -380, 90],
-         [-650, 380, 90], [0, 380, 90], [650, 380, 90]],
+        [
+            [-650, -380, 90],
+            [0, -380, 90],
+            [650, -380, 90],
+            [-650, 380, 90],
+            [0, 380, 90],
+            [650, 380, 90],
+        ],
         [1.7, 0.45, 0.9],
         ("cover", "combat"),
     )
@@ -150,9 +181,18 @@ def _cover_arena_layout() -> Layout:
     pieces = _room_shell("CoverArena", 2400, 1800)
     pieces += _boxes(
         "CoverArena_LowCover",
-        [[-760, -520, 80], [-260, -520, 80], [260, -520, 80], [760, -520, 80],
-         [-760, 0, 80], [760, 0, 80],
-         [-760, 520, 80], [-260, 520, 80], [260, 520, 80], [760, 520, 80]],
+        [
+            [-760, -520, 80],
+            [-260, -520, 80],
+            [260, -520, 80],
+            [760, -520, 80],
+            [-760, 0, 80],
+            [760, 0, 80],
+            [-760, 520, 80],
+            [-260, 520, 80],
+            [260, 520, 80],
+            [760, 520, 80],
+        ],
         [1.45, 0.35, 0.75],
         ("cover", "combat", "sightline"),
     )
@@ -225,8 +265,14 @@ def _boss_arena_layout() -> Layout:
     pieces = _room_shell("MythicBossArena", 3000, 2400, wall_height=360)
     pieces += _boxes(
         "MythicBossArena_OuterPillar",
-        [[-1100, -780, 210], [0, -880, 210], [1100, -780, 210],
-         [-1100, 780, 210], [0, 880, 210], [1100, 780, 210]],
+        [
+            [-1100, -780, 210],
+            [0, -880, 210],
+            [1100, -780, 210],
+            [-1100, 780, 210],
+            [0, 880, 210],
+            [1100, 780, 210],
+        ],
         [0.55, 0.55, 2.1],
         ("pillar", "readability", "mythic"),
     )
@@ -272,9 +318,14 @@ def _gauntlet_layout() -> Layout:
     )
     pieces += _boxes(
         "MythicGauntlet_EnemyPod",
-        [[-360, -760, 90], [360, -760, 90],
-         [-360, 260, 90], [360, 260, 90],
-         [-360, 1260, 90], [360, 1260, 90]],
+        [
+            [-360, -760, 90],
+            [360, -760, 90],
+            [-360, 260, 90],
+            [360, 260, 90],
+            [-360, 1260, 90],
+            [360, 1260, 90],
+        ],
         [0.7, 0.7, 0.9],
         ("enemy_pod", "encounter", "combat"),
     )
@@ -288,32 +339,53 @@ def _gauntlet_layout() -> Layout:
         1200,
         3400,
         tuple(pieces),
-        ("Three gates define pacing", "Enemy pods are separated per beat", "Reward marker ends the route"),
+        (
+            "Three gates define pacing",
+            "Enemy pods are separated per beat",
+            "Reward marker ends the route",
+        ),
     )
 
 
 def _room_shell(
-    kind: str, width: float, depth: float, *, wall_height: float = 300,
-    wall_thickness: float = 40
+    kind: str, width: float, depth: float, *, wall_height: float = 300, wall_thickness: float = 40
 ) -> tuple[Piece, ...]:
     half_w = width / 2
     half_d = depth / 2
     return (
         _box(f"{kind}_Floor", [0, 0, -10], [width / 100, depth / 100, 0.12], ("floor", "walkable")),
-        _box(f"{kind}_Wall_North", [0, half_d, wall_height / 2], [width / 100, wall_thickness / 100, wall_height / 100], ("wall", "boundary")),
-        _box(f"{kind}_Wall_South", [0, -half_d, wall_height / 2], [width / 100, wall_thickness / 100, wall_height / 100], ("wall", "boundary")),
-        _box(f"{kind}_Wall_East", [half_w, 0, wall_height / 2], [wall_thickness / 100, depth / 100, wall_height / 100], ("wall", "boundary")),
-        _box(f"{kind}_Wall_West", [-half_w, 0, wall_height / 2], [wall_thickness / 100, depth / 100, wall_height / 100], ("wall", "boundary")),
+        _box(
+            f"{kind}_Wall_North",
+            [0, half_d, wall_height / 2],
+            [width / 100, wall_thickness / 100, wall_height / 100],
+            ("wall", "boundary"),
+        ),
+        _box(
+            f"{kind}_Wall_South",
+            [0, -half_d, wall_height / 2],
+            [width / 100, wall_thickness / 100, wall_height / 100],
+            ("wall", "boundary"),
+        ),
+        _box(
+            f"{kind}_Wall_East",
+            [half_w, 0, wall_height / 2],
+            [wall_thickness / 100, depth / 100, wall_height / 100],
+            ("wall", "boundary"),
+        ),
+        _box(
+            f"{kind}_Wall_West",
+            [-half_w, 0, wall_height / 2],
+            [wall_thickness / 100, depth / 100, wall_height / 100],
+            ("wall", "boundary"),
+        ),
     )
 
 
 def _boxes(
-    prefix: str, positions: list[list[float]], scale: list[float],
-    tags: tuple[str, ...]
+    prefix: str, positions: list[list[float]], scale: list[float], tags: tuple[str, ...]
 ) -> tuple[Piece, ...]:
     return tuple(
-        _box(f"{prefix}_{idx:02d}", pos, scale, tags)
-        for idx, pos in enumerate(positions, start=1)
+        _box(f"{prefix}_{idx:02d}", pos, scale, tags) for idx, pos in enumerate(positions, start=1)
     )
 
 
@@ -360,7 +432,9 @@ def _quality_report(layout: Layout, spawned: list[str], errors: list[dict]) -> d
     score -= len(missing) * 15
     if not any(tag in tags for tag in ("objective", "boss_start", "reward", "exit")):
         score -= 10
-    if layout.kind != "Room" and not any(tag in tags for tag in ("cover", "dodge_lane", "enemy_pod", "pillar")):
+    if layout.kind != "Room" and not any(
+        tag in tags for tag in ("cover", "dodge_lane", "enemy_pod", "pillar")
+    ):
         score -= 10
     score = max(0, min(100, score))
     return {
@@ -374,29 +448,60 @@ def _quality_report(layout: Layout, spawned: list[str], errors: list[dict]) -> d
 
 
 def _looks_like_blockout(text: str) -> bool:
-    return _has_any(text, (
-        "blockout", "greybox", "graybox", "whitebox", "levelprototype",
-        "combatspace", "arena", "boss", "gauntlet", "corridor", "room",
-        "heishenhua", "blackmyth", "wukong",
-        "\u767d\u76d2", "\u7070\u76d2", "\u5173\u5361", "\u7ade\u6280\u573a",
-        "\u6218\u6597", "\u573a\u5730", "\u573a\u666f", "\u8d70\u5eca",
-        "\u623f\u95f4", "\u63a9\u4f53", "\u9ed1\u795e\u8bdd",
-        "\u609f\u7a7a", "\u5996\u602a", "\u9996\u9886",
-    ))
+    return _has_any(
+        text,
+        (
+            "blockout",
+            "greybox",
+            "graybox",
+            "whitebox",
+            "levelprototype",
+            "combatspace",
+            "arena",
+            "boss",
+            "gauntlet",
+            "corridor",
+            "room",
+            "heishenhua",
+            "blackmyth",
+            "wukong",
+            "\u767d\u76d2",
+            "\u7070\u76d2",
+            "\u5173\u5361",
+            "\u7ade\u6280\u573a",
+            "\u6218\u6597",
+            "\u573a\u5730",
+            "\u573a\u666f",
+            "\u8d70\u5eca",
+            "\u623f\u95f4",
+            "\u63a9\u4f53",
+            "\u9ed1\u795e\u8bdd",
+            "\u609f\u7a7a",
+            "\u5996\u602a",
+            "\u9996\u9886",
+        ),
+    )
 
 
 def _clear_keywords() -> tuple[str, ...]:
     return (
-        "clearblockout", "clearwhitebox", "cleargreybox",
-        "\u6e05\u9664\u767d\u76d2", "\u6e05\u7406\u767d\u76d2",
-        "\u5220\u9664\u767d\u76d2", "\u6e05\u9664\u7070\u76d2",
+        "clearblockout",
+        "clearwhitebox",
+        "cleargreybox",
+        "\u6e05\u9664\u767d\u76d2",
+        "\u6e05\u7406\u767d\u76d2",
+        "\u5220\u9664\u767d\u76d2",
+        "\u6e05\u9664\u7070\u76d2",
     )
 
 
 def _inspect_keywords() -> tuple[str, ...]:
     return (
-        "inspectblockout", "listblockout", "readblockout",
-        "\u67e5\u770b\u767d\u76d2", "\u5217\u51fa\u767d\u76d2",
+        "inspectblockout",
+        "listblockout",
+        "readblockout",
+        "\u67e5\u770b\u767d\u76d2",
+        "\u5217\u51fa\u767d\u76d2",
         "\u573a\u666f\u91cc\u73b0\u5728\u6709\u4ec0\u4e48",
     )
 
@@ -417,7 +522,9 @@ def _print_result(action: str, result: dict, *, verbose: bool) -> None:
 
 def _print_report(layout: Layout, result: dict) -> None:
     report = result.get("report", {})
-    print(f"[blockout] layout={layout.kind} score={report.get('score')} count={result.get('count')}")
+    print(
+        f"[blockout] layout={layout.kind} score={report.get('score')} count={result.get('count')}"
+    )
     print(f"[blockout] intent={layout.intent}")
     for note in report.get("notes", []):
         print(f"  note: {note}")
@@ -467,11 +574,15 @@ def _selfcheck() -> int:
             f"expected {expected} actors, got {[a['name'] for a in blockout]}"
         )
         assert all(a.get("folder") for a in blockout), "missing UE folder metadata"
-        assert any("player_start" in a.get("tags", []) for a in blockout), "missing player start tag"
+        assert any("player_start" in a.get("tags", []) for a in blockout), (
+            "missing player start tag"
+        )
         print(f"OK {expected}: {len(blockout)} actors")
 
     transport = MockTransport()
-    assert try_handle_blockout_prompt(transport, "\u9ed1\u795e\u8bddboss\u767d\u76d2", verbose=False)
+    assert try_handle_blockout_prompt(
+        transport, "\u9ed1\u795e\u8bddboss\u767d\u76d2", verbose=False
+    )
     assert try_handle_blockout_prompt(transport, "\u6e05\u9664\u767d\u76d2", verbose=False)
     remaining = transport.call("cnd_list").get("actors", [])
     assert not remaining, f"clear failed: {remaining}"

@@ -4,6 +4,7 @@ The model is still used for open-ended edits. This module handles commands that
 must be reliable from a button or a short Chinese prompt: spawn basic shapes,
 read the scene, and clear Cindra-owned actors.
 """
+
 from __future__ import annotations
 
 import re
@@ -154,7 +155,7 @@ def _count_before_shape(text: str, shapes: tuple[str, ...]) -> int | None:
         idx = text.find(shape)
         if idx < 0:
             continue
-        before = text[max(0, idx - 8):idx]
+        before = text[max(0, idx - 8) : idx]
         m = re.search(r"(\d+)", before)
         if m:
             return int(m.group(1))
@@ -193,4 +194,10 @@ def _spawn_centered_series(transport: Any, actor_type: str, count: int, *, z: fl
         if not result.get("ok", True):
             return {"ok": False, "error": result.get("error"), "spawned": names}
         names.append(result["name"])
-    return {"ok": True, "action": "spawn_series", "type": actor_type, "count": len(names), "names": names}
+    return {
+        "ok": True,
+        "action": "spawn_series",
+        "type": actor_type,
+        "count": len(names),
+        "names": names,
+    }
